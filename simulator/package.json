@@ -1,0 +1,20 @@
+{
+  "name": "salgest-iot-simulator",
+  "version": "1.0.0",
+  "description": "Simulador de datos IoT para sensores de silos",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "multi": "node multi-silo.js",
+    "multi:dev": "node --watch multi-silo.js"
+  },
+  "keywords": ["iot", "simulator", "silos", "sensors"],
+  "author": "Matias Rau Bekerman",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.0"
+  }
+}
+

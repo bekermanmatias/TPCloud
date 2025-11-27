@@ -93,6 +93,64 @@ Se espera combinar IoT y cloud para crear un prototipo funcional que resuelve un
 
 En desarrollo - 2025
 
+## 🏗️ Estructura del Proyecto
+
+```
+Salgest/
+├── backend/          # API REST en Node.js
+├── frontend/         # Aplicación web en React
+├── simulator/        # Simulador de datos IoT (para desarrollo sin hardware)
+└── README.md
+```
+
+## 🎮 Inicio Rápido
+
+### Requisitos
+- Node.js (v18 o superior)
+- npm
+
+### Instalación
+
+```bash
+# Instalar todas las dependencias
+npm run install:all
+```
+
+### Ejecución
+
+**Terminal 1 - Backend:**
+```bash
+npm run dev:backend
+```
+
+**Terminal 2 - Frontend:**
+```bash
+npm run dev:frontend
+```
+
+**Terminal 3 - Simulador (datos IoT):**
+```bash
+npm run dev:simulator
+```
+
+### Acceso
+- **Frontend:** http://localhost:5173
+- **Backend API:** http://localhost:3000
+- **Health Check:** http://localhost:3000/health
+
+> 📖 Para más detalles, consulta [INSTRUCCIONES.md](./INSTRUCCIONES.md)
+
+## 🔧 Simulador de Datos IoT
+
+Como el hardware físico no está disponible inicialmente, el proyecto incluye un **simulador de datos IoT** que genera valores realistas de todos los sensores:
+
+- ✅ Temperatura multipunto (4 sensores DS18B20)
+- ✅ Humedad relativa (SHT31/DHT22)
+- ✅ Nivel de grano (ultrasonido/ToF)
+- ✅ Calidad del aire / CO₂ (MQ-135)
+
+El simulador envía datos al backend cada 5 segundos (configurable) y permite desarrollar y probar todo el sistema sin necesidad del hardware físico.
+
 ## 📝 Licencia
 
 Este proyecto es parte del trabajo académico para la materia Desarrollo de Software Cloud de la UTN FRLP.

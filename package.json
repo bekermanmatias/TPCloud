@@ -1,0 +1,17 @@
+{
+  "name": "salgest",
+  "version": "1.0.0",
+  "description": "Sistema IoT para Monitoreo de Silos y Gestión de Stock en la Nube",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install && cd ../simulator && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:simulator": "cd simulator && npm start",
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "cd frontend && npm run build && npm run preview"
+  },
+  "keywords": ["iot", "silos", "monitoring", "cloud"],
+  "author": "Matias Rau Bekerman - 31787",
+  "license": "ISC"
+}
+
