@@ -1,15 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
-import Navbar from './components/Navbar';
-import Dashboard from './components/Dashboard';
-import LocationSection from './components/LocationSection';
+import Sidebar from './components/Sidebar';
+import SilosTable from './components/SilosTable';
+import LocationDetail from './components/LocationDetail';
+import SiloDetailView from './components/SiloDetailView';
 import { getSilos } from './services/api';
 
 function App() {
   const [silos, setSilos] = useState([]);
   const [selectedSilo, setSelectedSilo] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('silos');
-
+  const [currentView, setCurrentView] = useState('dashboard');
+  
   // Agrupar silos por ubicación
   const locations = useMemo(() => {
     const locationMap = new Map();
@@ -36,70 +38,108 @@ function App() {
     loadSilos();
     
     // Actualizar datos cada 5 segundos
-    const interval = setInterval(loadSilos, 5000);
+    const interval = setInterval(() => {
+      loadSilos();
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 
   const loadSilos = async () => {
     try {
       const data = await getSilos();
-      setSilos(data);
-      if (data.length > 0 && !selectedSilo) {
-        setSelectedSilo(data[0].id);
+      // Debug: verificar que los datos incluyan latestData
+      if (data.length > 0) {
+        console.log('📊 Silos cargados:', data.length);
+        const siloConDatos = data.find(s => s.latestData);
+        if (siloConDatos) {
+          console.log('✅ Silo con datos:', siloConDatos.name, siloConDatos.latestData.grainLevel);
+        } else {
+          console.log('⚠️ Ningún silo tiene datos aún. ¿Está corriendo el simulador?');
+        }
       }
-      setLoading(false);
+      setSilos(data);
+      if (loading) {
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error al cargar silos:', error);
-      setLoading(false);
+      if (loading) {
+        setLoading(false);
+      }
     }
   };
 
-  const handleSelectSilo = (siloId) => {
-    setSelectedSilo(siloId);
+  const handleSelectSilo = (silo) => {
+    setSelectedSilo(silo);
+    setCurrentView('silo-detail');
+  };
+
+  const handleSelectLocation = (locationId) => {
+    const location = locations.find(loc => loc.id === locationId);
+    if (location) {
+      setSelectedLocation(location);
+      setCurrentView('location-detail');
+    }
+  };
+
+  const handleBackToDashboard = () => {
+    setSelectedLocation(null);
+    setSelectedSilo(null);
     setCurrentView('dashboard');
   };
 
   const renderContent = () => {
+    // Vista de detalle de silo
+    if (currentView === 'silo-detail' && selectedSilo) {
+      return (
+        <SiloDetailView
+          silo={selectedSilo}
+          onBack={handleBackToDashboard}
+        />
+      );
+    }
+
+    // Vista de detalle de ubicación
+    if (currentView === 'location-detail' && selectedLocation) {
+      return (
+        <LocationDetail
+          location={selectedLocation}
+          silos={silos}
+          onBack={handleBackToDashboard}
+        />
+      );
+    }
+
     switch (currentView) {
       case 'dashboard':
-        return selectedSilo ? (
-          <Dashboard siloId={selectedSilo} />
-        ) : (
-          <div className="empty-state">
-            <h2>Dashboard</h2>
-            <p>Selecciona un silo para ver su dashboard</p>
+        return (
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2">Panel de Control</h1>
+              <p className="text-gray-600">Vista general de todos los silos</p>
+            </div>
+            <SilosTable 
+              silos={silos} 
+              onSelectSilo={handleSelectSilo}
+              onSelectLocation={handleSelectLocation}
+            />
           </div>
         );
       
       case 'silos':
       case 'locations':
         return (
-          <>
-            <section className="locations-section">
-              <div className="locations-header">
-                <h2>Ubicaciones</h2>
-                <div className="locations-summary">
-                  <span>{locations.length} ubicación{locations.length > 1 ? 'es' : ''}</span>
-                  <span>•</span>
-                  <span>{silos.length} silo{silos.length > 1 ? 's' : ''} total</span>
-                </div>
-              </div>
-
-              {locations.map(location => (
-                <LocationSection
-                  key={location.id}
-                  location={location}
-                  silos={silos}
-                  selectedSilo={selectedSilo}
-                  onSelectSilo={handleSelectSilo}
-                />
-              ))}
-            </section>
-
-            {selectedSilo && (
-              <Dashboard siloId={selectedSilo} />
-            )}
-          </>
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-semibold text-gray-900 mb-2">Silos</h1>
+              <p className="text-gray-600">Vista general de todos los silos</p>
+            </div>
+            <SilosTable 
+              silos={silos} 
+              onSelectSilo={handleSelectSilo}
+              onSelectLocation={handleSelectLocation}
+            />
+          </div>
         );
       
       case 'reports':
@@ -107,6 +147,14 @@ function App() {
           <div className="empty-state">
             <h2>Reportes</h2>
             <p>Funcionalidad de reportes próximamente disponible</p>
+          </div>
+        );
+      
+      case 'settings':
+        return (
+          <div className="empty-state">
+            <h2>Cuentas</h2>
+            <p>Gestión de cuentas próximamente disponible</p>
           </div>
         );
       
@@ -125,9 +173,9 @@ function App() {
 
   return (
     <div className="app">
-      <Navbar currentView={currentView} onViewChange={setCurrentView} />
+      <Sidebar currentView={currentView} onViewChange={setCurrentView} />
 
-      <main className="main-content">
+      <main className="main-content-with-sidebar">
         {renderContent()}
       </main>
     </div>

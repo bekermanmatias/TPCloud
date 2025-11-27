@@ -10,8 +10,16 @@
     "start:backend": "cd backend && npm start",
     "start:frontend": "cd frontend && npm run build && npm run preview"
   },
-  "keywords": ["iot", "silos", "monitoring", "cloud"],
+  "keywords": [
+    "iot",
+    "silos",
+    "monitoring",
+    "cloud"
+  ],
   "author": "Matias Rau Bekerman - 31787",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^5.0.0"
+  }
 }
-

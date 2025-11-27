@@ -1,13 +1,15 @@
 import { useState } from 'react';
+import { Button } from './ui/button';
+import { LayoutDashboard, Warehouse, MapPin, BarChart3, Menu, X } from 'lucide-react';
 
 function Navbar({ currentView, onViewChange }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-    { id: 'silos', label: 'Silos', icon: '🌾' },
-    { id: 'locations', label: 'Ubicaciones', icon: '📍' },
-    { id: 'reports', label: 'Reportes', icon: '📈' }
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'silos', label: 'Silos', icon: Warehouse },
+    { id: 'locations', label: 'Ubicaciones', icon: MapPin },
+    { id: 'reports', label: 'Reportes', icon: BarChart3 }
   ];
 
   return (
@@ -21,46 +23,55 @@ function Navbar({ currentView, onViewChange }) {
 
         {/* Menú desktop */}
         <div className="navbar-menu">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              className={`navbar-item ${currentView === item.id ? 'active' : ''}`}
-              onClick={() => onViewChange(item.id)}
-            >
-              <span className="navbar-item-icon">{item.icon}</span>
-              <span className="navbar-item-label">{item.label}</span>
-            </button>
-          ))}
+          {menuItems.map(item => {
+            const Icon = item.icon;
+            return (
+              <Button
+                key={item.id}
+                variant={currentView === item.id ? "default" : "ghost"}
+                size="sm"
+                onClick={() => onViewChange(item.id)}
+                className="gap-2"
+              >
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Button>
+            );
+          })}
         </div>
 
         {/* Botón menú móvil */}
-        <button
-          className="navbar-mobile-toggle"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           aria-label="Toggle menu"
         >
-          <span className={isMobileMenuOpen ? 'open' : ''}></span>
-          <span className={isMobileMenuOpen ? 'open' : ''}></span>
-          <span className={isMobileMenuOpen ? 'open' : ''}></span>
-        </button>
+          {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
       </div>
 
       {/* Menú móvil */}
       {isMobileMenuOpen && (
         <div className="navbar-mobile-menu">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              className={`navbar-mobile-item ${currentView === item.id ? 'active' : ''}`}
-              onClick={() => {
-                onViewChange(item.id);
-                setIsMobileMenuOpen(false);
-              }}
-            >
-              <span className="navbar-item-icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </button>
-          ))}
+          {menuItems.map(item => {
+            const Icon = item.icon;
+            return (
+              <Button
+                key={item.id}
+                variant={currentView === item.id ? "default" : "ghost"}
+                className="w-full justify-start gap-3"
+                onClick={() => {
+                  onViewChange(item.id);
+                  setIsMobileMenuOpen(false);
+                }}
+              >
+                <Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+              </Button>
+            );
+          })}
         </div>
       )}
     </nav>

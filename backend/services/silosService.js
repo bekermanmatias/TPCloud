@@ -15,6 +15,8 @@ if (silosStore.size === 0) {
     height: 10, // metros
     diameter: 6, // metros
     grainType: 'Soja',
+    latitude: -34.9215,
+    longitude: -57.9545,
     createdAt: new Date().toISOString()
   });
   
@@ -27,6 +29,8 @@ if (silosStore.size === 0) {
     height: 9,
     diameter: 5.5,
     grainType: 'Maíz',
+    latitude: -34.9220,
+    longitude: -57.9550,
     createdAt: new Date().toISOString()
   });
   
@@ -40,6 +44,8 @@ if (silosStore.size === 0) {
     height: 11,
     diameter: 7,
     grainType: 'Trigo',
+    latitude: -34.9300,
+    longitude: -57.9600,
     createdAt: new Date().toISOString()
   });
   
@@ -52,6 +58,8 @@ if (silosStore.size === 0) {
     height: 10,
     diameter: 6,
     grainType: 'Soja',
+    latitude: -34.9305,
+    longitude: -57.9605,
     createdAt: new Date().toISOString()
   });
   
@@ -65,16 +73,33 @@ if (silosStore.size === 0) {
     height: 12,
     diameter: 8,
     grainType: 'Soja',
+    latitude: -34.9100,
+    longitude: -57.9500,
     createdAt: new Date().toISOString()
   });
 }
 
 /**
  * Obtiene todos los silos
- * @returns {Array} Array de silos
+ * @returns {Array} Array de silos con sus últimos datos
  */
 export async function getAllSilos() {
-  return Array.from(silosStore.values());
+  const { getLatestData } = await import('./sensorDataService.js');
+  
+  const silos = Array.from(silosStore.values());
+  
+  // Agregar últimos datos a cada silo
+  const silosWithData = await Promise.all(
+    silos.map(async (silo) => {
+      const latestData = await getLatestData(silo.id);
+      return {
+        ...silo,
+        latestData: latestData || null
+      };
+    })
+  );
+  
+  return silosWithData;
 }
 
 /**
