@@ -83,6 +83,23 @@ El backend:
 4. Sube la imagen a **S3** (multer-s3) y guarda la URL pública.  
 5. Ejecuta `evaluateAlerts()` para disparar alertas.
 
+#### 2.4 Códigos de kit (`kit_code`)
+
+El `kit_code` es el **identificador lógico** que conecta un dispositivo físico (ESP32) con un silo en la base de datos.
+
+- Se define/edita desde el frontend:
+  - En `Silos` → botón **Agregar/Editar silo** → campo **“Código de kit IoT (opcional)”**.  
+  - Cada silo puede tener **cero o un** `kit_code` asociado.
+- En la instalación en campo:
+  - El técnico configura ese mismo código en el firmware del ESP32 (por ejemplo `KIT_CODE = "SILO-A1B2";`).  
+  - Opcionalmente se imprime una etiqueta con el código y se pega en el silo correspondiente.
+- En tiempo de ejecución:
+  - Cada `POST /api/datos-silo` incluye `kit_code`.  
+  - El backend resuelve internamente el `silo_id` con `getSiloIdByKitCode(kit_code)`.  
+  - Si el código no existe o pertenece a otro usuario, el servidor devuelve `404` o `403`.
+
+Esto permite desacoplar la identificación física del dispositivo de los IDs internos de la base de datos y facilita el intercambio o reemplazo de hardware sin perder el historial del silo.
+
 ---
 
 ### 3. Estructura del repositorio
@@ -496,4 +513,52 @@ curl -X POST http://localhost:3000/api/datos-silo \
 ```
 
 En un escenario real, el firmware del ESP32 se encarga de construir este request periódicamente (cada N segundos/minutos).
+
+---
+
+### 14. Capturas de pantalla (UI)
+
+Este proyecto está preparado para documentar visualmente el sistema en funcionamiento.
+
+Se recomienda:
+
+- Crear una carpeta `docs/images/` y guardar allí las capturas en formato `.png` o `.jpg`.  
+- Nombrar las imágenes de forma descriptiva, por ejemplo:
+  - `dashboard-overview.png`
+  - `silo-detail-heatmap.png`
+  - `gallery-with-notes.png`
+  - `alerts-panel.png`
+
+Ejemplo de cómo incrustar una captura en este README:
+
+```markdown
+![Panel de control de Salgest](docs/images/dashboard-overview.png)
+```
+
+Cuando tengas las capturas definitivas, solo hace falta añadirlas en la sección correspondiente del README (por ejemplo, debajo de la descripción del Dashboard o del detalle de silo).
+
+---
+
+### 15. Video demo (YouTube)
+
+También podés documentar la plataforma con un video demostrativo en YouTube (zafra real, instalación en silo, recorrido por la app, etc.).
+
+Sugerencias:
+
+- Grabar un recorrido corto (3–7 minutos) mostrando:
+  - Inicio de sesión y vista general del **Dashboard**.  
+  - Ingreso al detalle de un silo y lectura de métricas.  
+  - Uso de la **cámara en vivo** y del **historial visual**.  
+  - Visualización y reconocimiento de alertas.  
+  - Guardar una captura en la galería con nota y verla luego en `Galería`.
+
+- Una vez publicado el video, agregar el enlace aquí:
+
+```markdown
+### 🎥 Demo en video
+
+[Ver demo de Salgest en YouTube](https://www.youtube.com/watch?v=TU_LINK_AQUI)
+```
+
+Hasta que el video esté disponible, podés dejar el enlace en forma de TODO o comentario para no olvidarlo.
 
