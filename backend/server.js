@@ -52,19 +52,13 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Ruta raíz
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Salgest Backend API',
-    version: '1.0.0',
-    endpoints: {
-      health: '/health',
-      auth: '/api/auth (login, register)',
-      sensorData: '/api/sensor-data',
-      silos: '/api/silos',
-      camera: '/api/camera/:siloId'
-    }
-  });
+// Servir archivos estáticos del frontend (build de React en ./dist)
+const distPath = path.join(__dirname, 'dist');
+app.use(express.static(distPath));
+
+// Ruta comodín: cualquier otra ruta devuelve index.html para React Router
+app.get('*', (req, res) => {
+  res.sendFile(path.join(distPath, 'index.html'));
 });
 
 // Manejo de errores
