@@ -110,12 +110,32 @@ async function createTables() {
     );
   `;
 
+  const createGalleryCapturesTable = `
+    CREATE TABLE IF NOT EXISTS gallery_captures (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      silo_id VARCHAR(50) NOT NULL REFERENCES silos(id) ON DELETE CASCADE,
+      silo_name VARCHAR(255),
+      image_path VARCHAR(500),
+      captured_at TIMESTAMPTZ,
+      temperature DECIMAL(5,2),
+      humidity DECIMAL(5,2),
+      co2 DECIMAL(6,0),
+      grain_level_percentage DECIMAL(5,2),
+      grain_level_tons DECIMAL(10,2),
+      presion DECIMAL(7,2),
+      source VARCHAR(20) DEFAULT 'live',
+      saved_at TIMESTAMPTZ DEFAULT NOW()
+    );
+  `;
+
   const createIndexes = `
     CREATE INDEX IF NOT EXISTS idx_silos_user_id ON silos(user_id);
     CREATE INDEX IF NOT EXISTS idx_sensor_data_silo_id ON sensor_data(silo_id);
     CREATE INDEX IF NOT EXISTS idx_sensor_data_timestamp ON sensor_data(timestamp);
     CREATE INDEX IF NOT EXISTS idx_alerts_silo_id ON alerts(silo_id);
     CREATE INDEX IF NOT EXISTS idx_alerts_resolved ON alerts(resolved_at) WHERE resolved_at IS NULL;
+    CREATE INDEX IF NOT EXISTS idx_gallery_user_id ON gallery_captures(user_id);
   `;
 
   try {
@@ -124,6 +144,7 @@ async function createTables() {
     await pool.query(createSensorDataTable);
     await pool.query(createAlertsTable);
     await pool.query(createAlertConfigsTable);
+    await pool.query(createGalleryCapturesTable);
     await pool.query(createIndexes);
     await migrateSilosAddUserId();
     await migrateSilosAddKitCode();

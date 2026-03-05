@@ -156,6 +156,29 @@ export const updateProfile = async (data) => {
   return response.data; // { user: { id, email, name } }
 };
 
+// ── Galería ───────────────────────────────────────────────────────────────────
+
+/** Devuelve todas las capturas guardadas del usuario */
+export const getGallery = async () => {
+  const response = await api.get('/gallery');
+  return response.data;
+};
+
+/**
+ * Guarda una captura en la galería.
+ * @param {{ silo_id, silo_name, image_path, captured_at, temperature, humidity, co2,
+ *           grain_level_percentage, grain_level_tons, presion, source }} data
+ */
+export const saveCapture = async (data) => {
+  const response = await api.post('/gallery', data);
+  return response.data;
+};
+
+/** Elimina una captura de la galería por su id */
+export const deleteCapture = async (id) => {
+  await api.delete(`/gallery/${id}`);
+};
+
 export const login = async (email, password) => {
   const response = await api.post('/auth/login', { email, password });
   return response.data;

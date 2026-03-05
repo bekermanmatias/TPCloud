@@ -8,6 +8,7 @@ import SiloDetailView from './components/SiloDetailView';
 import SiloSummaryCard from './components/SiloSummaryCard';
 import GlobalAlertsPanel from './components/GlobalAlertsPanel';
 import ConfiguracionPage from './components/ConfiguracionPage';
+import GaleriaPage from './components/GaleriaPage';
 import { getSilos, getSiloById, getActiveAlerts } from './services/api';
 import { Warehouse, Wifi, AlertTriangle, Package, Map, BarChart3, Clock } from 'lucide-react';
 
@@ -319,6 +320,14 @@ function App() {
             silos={silos}
             onSiloUpdated={loadSilos}
           />
+        }
+      />
+      <Route
+        path="/galeria"
+        element={
+          <AppLayout>
+            <GaleriaPage />
+          </AppLayout>
         }
       />
       <Route

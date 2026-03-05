@@ -308,9 +308,6 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
                     <SortHeader label="Peso"     field="weight"  sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Días stock
-                  </th>
-                  <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     <SortHeader label="Stock %"  field="stock"   sortBy={sortBy} sortDir={sortDir} onSort={handleSort} />
                   </th>
                   <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -327,7 +324,6 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
               <tbody className="bg-white divide-y divide-gray-100">
                 {processed.map((silo) => {
                   const ld         = silo.latestData;
-                  const stockDays  = calculateStockDays(silo);
                   const stockPct   = silo._stockPct;
                   const weight     = silo._weight;
                   const capacity   = silo.capacity || 100;
@@ -361,14 +357,6 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
                       <td className="px-5 py-3.5 text-sm">
                         <span className="font-medium">{weight.toFixed(2)} t</span>
                         <span className="text-xs text-gray-400 block">{freeSpace.toFixed(1)} t libre</span>
-                      </td>
-
-                      {/* Días stock */}
-                      <td className="px-5 py-3.5 text-sm">
-                        {stockDays.days > 0
-                          ? <><span className="font-medium">{stockDays.days} d</span>
-                              {stockDays.dailyConsumption > 0 && <span className="text-xs text-gray-400 block">{stockDays.dailyConsumption} kg/día</span>}</>
-                          : <span className="text-gray-400">—</span>}
                       </td>
 
                       {/* Stock % */}

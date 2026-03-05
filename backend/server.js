@@ -8,6 +8,7 @@ import { silosRouter } from './routes/silos.js';
 import { cameraRouter } from './routes/camera.js';
 import { authRouter } from './routes/auth.js';
 import { alertsRouter } from './routes/alerts.js';
+import { galleryRouter } from './routes/gallery.js';
 import { initDatabase } from './database/init.js';
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api/sensor-data', sensorDataRouter);
 app.use('/api/silos', silosRouter);
 app.use('/api/camera', cameraRouter);
 app.use('/api/alerts', alertsRouter);
+app.use('/api/gallery', galleryRouter);
 
 // Alias para el ESP32: POST /api/datos-silo → handler IoT de sensorDataRouter
 app.use('/api/datos-silo', (req, res, next) => {

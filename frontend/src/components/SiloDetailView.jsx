@@ -19,8 +19,44 @@ import {
   Loader2,
   History,
   Droplets,
+  Maximize2,
+  X,
+  LayoutGrid,
+  Thermometer as ThermometerIcon,
+  Wind,
+  Package,
 } from 'lucide-react';
-import { getSiloHistory, getSiloFullHistory, getSiloCameraUrl, getSiloHistoryImageUrl, updateSilo, deleteSilo } from '../services/api';
+
+// ── Lightbox (imagen a pantalla completa) ──────────────────────────────────
+function ImageLightbox({ src, alt, onClose }) {
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white bg-black/40 hover:bg-black/70 rounded-full p-2 transition-colors"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      <img
+        src={src}
+        alt={alt}
+        className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl shadow-2xl"
+        style={{ filter: 'brightness(1.6) contrast(1.1)' }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+import { getSiloHistory, getSiloFullHistory, getSiloCameraUrl, getSiloHistoryImageUrl, updateSilo, deleteSilo, saveCapture } from '../services/api';
 import { SiloVisual } from './SiloVisual';
 import SiloHistory from './SiloHistory';
 import MapaCalorSilo from './MapaCalorSilo';
@@ -36,6 +72,10 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const [histories, setHistories] = useState([]);
   const [cameraKey, setCameraKey] = useState(0);
   const [cameraError, setCameraError] = useState(false);
+  const [lightbox, setLightbox]       = useState(null); // { src, alt }
+  const [savingCapture, setSavingCapture] = useState(false); // live camera
+  const [savingHistCapture, setSavingHistCapture] = useState(false); // hist visual
+  const [captureFeedback, setCaptureFeedback] = useState(null); // { msg, ok }
 
   // ── Historial visual (lazy) — solo carga al abrir el tab ────────────────
   const [histVisual, setHistVisual]         = useState([]);
@@ -70,14 +110,71 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     setHistTab((prev) => (prev === tab ? null : tab)); // toggle
     setMountedTabs((prev) => {
       if (prev.has(tab)) return prev;
-      // Al abrir 'visual' por primera vez, disparar la carga de datos
       if (tab === 'visual') {
-        // se dispara en un micro-tick para no bloquear el render
         setTimeout(() => loadHistVisual(false), 0);
       }
       return new Set([...prev, tab]);
     });
   }, [loadHistVisual]);
+
+  // ── Guardar captura en galería ─────────────────────────────────────────────
+  const showFeedback = (msg, ok) => {
+    setCaptureFeedback({ msg, ok });
+    setTimeout(() => setCaptureFeedback(null), 3000);
+  };
+
+  const handleSaveLiveCapture = async () => {
+    if (savingCapture) return;
+    const d = histories[0];
+    setSavingCapture(true);
+    try {
+      await saveCapture({
+        silo_id:               silo.id,
+        silo_name:             silo.name,
+        image_path:            d?.imagePath ?? null,
+        captured_at:           d?.timestamp ?? new Date().toISOString(),
+      temperature:           d?.temperature?.average ?? d?.temperature ?? null,
+      humidity:              d?.humidity ?? null,
+      co2:                   d?.gases?.co2 ?? (typeof d?.gases === 'number' ? d.gases : null),
+      grain_level_percentage: d?.grainLevel?.percentage ?? null,
+      grain_level_tons:      d?.grainLevel?.tons ?? null,
+      presion:               d?.presion ?? null,
+      source:                'live',
+      });
+      showFeedback('Captura guardada en Galería', true);
+    } catch {
+      showFeedback('Error al guardar la captura', false);
+    } finally {
+      setSavingCapture(false);
+    }
+  };
+
+  const handleSaveHistCapture = async () => {
+    if (savingHistCapture) return;
+    const d = histVisual[histVisualIdx];
+    if (!d) return;
+    setSavingHistCapture(true);
+    try {
+      await saveCapture({
+        silo_id:               silo.id,
+        silo_name:             silo.name,
+        image_path:            d.imagePath ?? null,
+        captured_at:           d.timestamp ?? null,
+      temperature:           d.temperature?.average ?? d.temperature ?? null,
+      humidity:              d.humidity ?? null,
+      co2:                   d.gases?.co2 ?? (typeof d.gases === 'number' ? d.gases : null),
+      grain_level_percentage: d.grainLevel?.percentage ?? null,
+      grain_level_tons:      d.grainLevel?.tons ?? null,
+      presion:               d.presion ?? null,
+      source:                'historical',
+      });
+      showFeedback('Captura guardada en Galería', true);
+    } catch {
+      showFeedback('Error al guardar la captura', false);
+    } finally {
+      setSavingHistCapture(false);
+    }
+  };
 
   // ── Editar silo ────────────────────────────────────────────────────────────
   const [editOpen, setEditOpen]     = useState(false);
@@ -558,7 +655,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                   <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
                     <Camera className="h-3 w-3" /> Cámara
                   </p>
-                  <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
+                  <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center group">
                     {!cameraError ? (
                       <img
                         key={cameraKey}
@@ -577,6 +674,27 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                           <Camera className="h-10 w-10 text-gray-400 mx-auto mb-2" />
                           <p className="text-sm text-gray-400">Sin imagen</p>
                           <p className="text-xs text-gray-500 mt-1">Esperando ESP32…</p>
+                        </div>
+                      </>
+                    )}
+                    {!cameraError && (
+                      <>
+                        <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={handleSaveLiveCapture}
+                            disabled={savingCapture}
+                            className="bg-orange-600/80 hover:bg-orange-700 text-white rounded-md p-1.5 disabled:opacity-50 transition-colors"
+                            title="Guardar captura en galería"
+                          >
+                            <LayoutGrid className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setLightbox({ src: getSiloCameraUrl(silo.id), alt: `Cámara ${silo.name}` })}
+                            className="bg-black/50 hover:bg-black/80 text-white rounded-md p-1.5 transition-colors"
+                            title="Ver en pantalla completa"
+                          >
+                            <Maximize2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </>
                     )}
@@ -604,6 +722,18 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         </div>
       </div>
 
+      {/* Toast de feedback de captura */}
+      {captureFeedback && (
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium transition-all ${
+          captureFeedback.ok
+            ? 'bg-green-600 text-white'
+            : 'bg-red-600 text-white'
+        }`}>
+          <LayoutGrid className="h-4 w-4" />
+          {captureFeedback.msg}
+        </div>
+      )}
+
       {/* Panel de alertas activas */}
       <AlertsPanel siloId={silo.id} />
 
@@ -612,7 +742,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         {/* Botones para abrir cada pestaña */}
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'visual',   icon: <ImageIcon className="h-4 w-4" />,  label: 'Historial visual'     },
+            { id: 'visual',   icon: <ImageIcon  className="h-4 w-4" />,  label: 'Historial visual'     },
             { id: 'datos',    icon: <BarChart2  className="h-4 w-4" />,  label: 'Historial de datos'   },
             { id: 'eventos',  icon: <Bell       className="h-4 w-4" />,  label: 'Historial de eventos' },
           ].map(({ id, icon, label }) => (
@@ -699,12 +829,12 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                         </div>
                       </div>
 
-                      {/* Cámara histórica + Mapa de calor lado a lado — tamaño compacto */}
-                      <div className="flex gap-3 justify-center">
+                      {/* Cámara histórica + Mapa de calor lado a lado */}
+                      <div className="flex gap-4 justify-center">
                         {/* Foto histórica */}
-                        <div className="w-40 shrink-0">
+                        <div className="w-56 shrink-0">
                           <p className="text-xs text-gray-500 mb-1 font-medium">Foto</p>
-                          <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
+                          <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center group">
                             {hvImgUrl && !histVisualCamErr ? (
                               <img
                                 key={hvImgUrl}
@@ -727,11 +857,32 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                             <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
                               Histórica
                             </div>
+                            {hvImgUrl && !histVisualCamErr && (
+                              <>
+                                <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={handleSaveHistCapture}
+                                    disabled={savingHistCapture}
+                                    className="bg-orange-600/80 hover:bg-orange-700 text-white rounded-md p-1.5 disabled:opacity-50 transition-colors"
+                                    title="Guardar en galería"
+                                  >
+                                    <LayoutGrid className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setLightbox({ src: hvImgUrl, alt: 'Foto histórica' })}
+                                    className="bg-black/50 hover:bg-black/80 text-white rounded-md p-1.5 transition-colors"
+                                    title="Ver en pantalla completa"
+                                  >
+                                    <Maximize2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
                         {/* Mapa de calor histórico */}
-                        <div className="w-40 shrink-0">
+                        <div className="w-56 shrink-0">
                           <p className="text-xs text-gray-500 mb-1 font-medium">Distribución</p>
                           <MapaCalorSilo
                             distanciaVacia={hvDist}
@@ -758,7 +909,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
             {/* ── Historial de datos de sensores (gráficos) ── */}
             {mountedTabs.has('datos') && (
               <div className={histTab === 'datos' ? '' : 'hidden'}>
-                <SiloHistory histories={histories} />
+                <SiloHistory histories={histories} siloName={silo.name} />
               </div>
             )}
 
@@ -782,6 +933,15 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
       saving={editSaving}
       error={editError}
     />
+
+    {/* Lightbox — imagen a pantalla completa */}
+    {lightbox && (
+      <ImageLightbox
+        src={lightbox.src}
+        alt={lightbox.alt}
+        onClose={() => setLightbox(null)}
+      />
+    )}
     </>
   );
 }

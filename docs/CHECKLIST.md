@@ -1,6 +1,6 @@
 # Salgest — Checklist de Estado del Proyecto
 
-> Última actualización: 05/03/2026
+> Última actualización: 05/03/2026 (rev. 2)
 
 ## Leyenda
 - ✅ Completo y funcionando
@@ -70,7 +70,7 @@
 | Toneladas estimadas | ✅ | Volumen real × densidad ajustada por humedad |
 | Altura medida (`distancia_vacia` en cm) | ✅ | Enviado por sensor ultrasónico |
 | Gráfico histórico de nivel (Peso t / Volumen %) | ✅ | Toggle entre modos |
-| Mapa de calor topográfico actual (vista cenital) | ✅ | Siempre visible en el detalle, Plotly heatmap con ángulo de reposo |
+| Mapa de calor topográfico actual (vista cenital) | ✅ | Siempre visible, columnas izq/der simétricas en altura |
 | Mapa de calor histórico (en tab "Historial visual") | ✅ | Sincronizado con slider temporal |
 | Días de stock estimados | ✅ | Calculado desde consumo real en SilosTable y SiloSummaryCard |
 | Consumo / ingreso estimado diario | ⚠️ | Calculado internamente; removido de la UI por ser poco estable |
@@ -131,12 +131,12 @@
 |---|---|---|
 | Gráfico de área (Peso/Volumen a lo largo del tiempo) | ✅ | Recharts AreaChart |
 | Gráfico de líneas (Temp + Humedad sincronizado) | ✅ | Recharts LineChart |
-| Gráfico dedicado de CO₂ / IQA | ✅ | AreaChart con líneas de umbral |
+| Gráfico dedicado de CO₂ / IQA | ✅ | AreaChart, sin líneas de umbral (removidas por redundancia) |
 | Selector de rango de fechas interactivo | ✅ | `datetime-local` con filtrado reactivo y botón reset |
 | Historial visual (fotos + mapas de calor) | ✅ | Tab lazy-loaded con slider |
 | Registro y visualización de alertas pasadas | ✅ | Tab "Historial" en detalle del silo, filtros por tipo y severidad |
 | Eventos detectados automáticamente | ✅ | Timeline con tipo, duración, estado y reconocimiento |
-| Exportar datos a CSV | ❌ | |
+| Exportar datos a CSV | ✅ | Botón "Exportar CSV" respeta el rango de fechas seleccionado; incluye peso, volumen, temp, humedad, CO₂, IQA; separador `;` para Excel |
 | Correlación temperatura vs gas | ❌ | |
 
 ---
@@ -158,12 +158,12 @@
 
 | Funcionalidad | Estado | Notas |
 |---|---|---|
-| Ver perfil (nombre y email) | ✅ | Avatar con inicial, datos en sección dedicada |
-| Editar nombre | ✅ | PUT `/api/auth/profile` |
+| Ver perfil (nombre y email) | ✅ | Avatar con inicial, modo lectura por defecto |
+| Editar nombre | ✅ | PUT `/api/auth/profile`, formulario colapsable (botón Editar) |
 | Editar email (validación de unicidad) | ✅ | |
-| Cambiar contraseña | ✅ | Requiere contraseña actual, barra de fuerza, confirmación |
+| Cambiar contraseña | ✅ | Formulario colapsable, requiere contraseña actual, barra de fuerza |
 | Mostrar/ocultar contraseña (ojo) | ✅ | |
-| Cerrar sesión con confirmación | ✅ | Botón con confirmación inline |
+| Cerrar sesión con confirmación | ✅ | Barra al fondo de la página, confirmación inline |
 | Foto de perfil / avatar personalizado | ❌ | Muestra inicial del nombre |
 | Historial de actividad del usuario | ❌ | |
 
@@ -190,7 +190,7 @@
 | Alerta: Sensor ultrasónico fuera de rango | ✅ | Detecta distancia imposible (> 110% altura) |
 | Reconocer alertas (acknowledge) | ✅ | Botón en detalle del silo y en panel global del dashboard |
 | Panel global de alertas en dashboard | ✅ | Todas las alertas de todos los silos, filtros por severidad y silo |
-| Panel de alertas en detalle del silo | ✅ | Polling 30 s, severidad por color |
+| Panel de alertas en detalle del silo | ✅ | Polling 30 s, severidad por color, sin texto redundante de conteo |
 | Historial de alertas por silo | ✅ | Tab "Historial" con filtros por tipo, severidad y período |
 | Configuración de umbrales desde UI | ❌ | API lista, falta formulario |
 | Notificaciones push / email | ❌ | |
@@ -218,7 +218,7 @@
 | Panel de Control (`/`) | ✅ | Rediseñado con tarjetas y alertas globales |
 | Silos (`/silos`) | ✅ | Tabla avanzada con filtros y ordenamiento |
 | Detalle de silo (`/silo/:id`) | ✅ | Acceso directo por URL |
-| Configuración (`/configuracion`) | ✅ | Perfil + cambio de contraseña + logout |
+| Configuración (`/configuracion`) | ✅ | Layout: avatar full-width, datos+contraseña en 2 columnas simétricas, sesión al fondo |
 | Mapa (`/mapa`) | ⚠️ | Página "Próximamente" |
 | Reportes (`/reportes`) | ⚠️ | Página "Próximamente" |
 
@@ -228,9 +228,9 @@
 
 | Estado | Cantidad |
 |---|---|
-| ✅ Completo | 70 |
+| ✅ Completo | 71 |
 | ⚠️ Parcial | 7 |
-| ❌ Pendiente | 19 |
+| ❌ Pendiente | 18 |
 | **Total** | **96** |
 
 ---

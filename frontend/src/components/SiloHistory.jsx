@@ -34,7 +34,44 @@ function toInputDatetime(isoStr) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function SiloHistory({ histories }) {
+// ── Export CSV ─────────────────────────────────────────────────────────────────
+function exportCSV(data, siloName = 'silo') {
+  const headers = [
+    'Fecha y hora',
+    'Peso (t)',
+    'Volumen (%)',
+    'Temperatura (°C)',
+    'Humedad (%)',
+    'CO₂ (ppm)',
+    'IQA (0-100)',
+  ];
+
+  const rows = data.map((d) => [
+    d.fullDate,
+    d.weight.toFixed(3),
+    d.volume.toFixed(2),
+    d.temp.toFixed(1),
+    d.humidity.toFixed(1),
+    d.co2,
+    d.iqa,
+  ]);
+
+  const csvContent =
+    '\uFEFF' + // BOM para compatibilidad con Excel
+    [headers, ...rows].map((r) => r.join(';')).join('\r\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  const date = new Date().toISOString().slice(0, 10);
+  link.href     = url;
+  link.download = `salgest_${siloName.replace(/\s+/g, '_')}_${date}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function SiloHistory({ histories, siloName }) {
   const [viewMode, setViewMode] = useState('weight');
   const [fromDatetime, setFromDatetime] = useState('');
   const [toDatetime, setToDatetime] = useState('');
@@ -169,11 +206,14 @@ function SiloHistory({ histories }) {
           </span>
           <Button
             variant="ghost"
-            size="icon"
-            className="rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200"
-            title="Descargar datos"
+            size="sm"
+            className="gap-1.5 bg-slate-100 text-slate-600 hover:bg-slate-200"
+            title="Exportar datos del rango seleccionado a CSV"
+            onClick={() => exportCSV(filteredData, siloName)}
+            disabled={filteredData.length === 0}
           >
-            <Download className="h-5 w-5" />
+            <Download className="h-4 w-4" />
+            Exportar CSV
           </Button>
         </div>
       </CardHeader>
@@ -357,17 +397,6 @@ function SiloHistory({ histories }) {
               </ResponsiveContainer>
             </div>
 
-            {/* Leyenda CO₂ */}
-            <div className="flex justify-center gap-6 mt-2 text-xs font-medium text-slate-500">
-              <div className="flex items-center gap-1">
-                <span className="inline-block w-6 border-t-2 border-dashed border-amber-400" />
-                Umbral atención (100 ppm)
-              </div>
-              <div className="flex items-center gap-1">
-                <span className="inline-block w-6 border-t-2 border-dashed border-red-400" />
-                Umbral crítico (150 ppm)
-              </div>
-            </div>
           </>
         )}
       </CardContent>

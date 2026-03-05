@@ -1,17 +1,18 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Warehouse, BarChart3, Settings, LogOut, Map } from 'lucide-react';
+import { LayoutDashboard, Warehouse, BarChart3, Settings, Map, LayoutGrid } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function Sidebar() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
   const menuItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard, path: '/' },
     { id: 'silos',     label: 'Silos',            icon: Warehouse,        path: '/silos' },
+    { id: 'galeria',   label: 'Galería',           icon: LayoutGrid,       path: '/galeria' },
     { id: 'map',       label: 'Mapa',             icon: Map,              path: '/mapa' },
     { id: 'reports',   label: 'Reportes',         icon: BarChart3,        path: '/reportes' },
     { id: 'settings',  label: 'Configuración',    icon: Settings,         path: '/configuracion' },
@@ -58,23 +59,14 @@ function Sidebar() {
         </div>
       </nav>
 
-      {/* Usuario y cerrar sesión */}
-      <div className="p-4 border-t border-gray-200 space-y-2">
+      {/* Usuario */}
+      <div className="p-4 border-t border-gray-200">
         {user?.email && (
           <div className="text-xs text-gray-600 truncate px-2" title={user.email}>
             {user.email}
           </div>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 text-gray-600"
-          onClick={logout}
-        >
-          <LogOut className="h-4 w-4" />
-          Cerrar sesión
-        </Button>
-        <div className="text-xs text-gray-500 text-center pt-1">Salgest v1.0</div>
+        <div className="text-xs text-gray-400 text-center pt-2">Salgest v1.0</div>
       </div>
     </aside>
   );
