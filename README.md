@@ -508,8 +508,3 @@ curl -X POST http://localhost:3000/api/datos-silo \
 
 En un escenario real, el firmware del ESP32 se encarga de construir este request periódicamente (cada N segundos/minutos).
 
-
-
-
-Hasta que el video esté disponible, podés dejar el enlace en forma de TODO o comentario para no olvidarlo.
-
