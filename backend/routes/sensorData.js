@@ -1,8 +1,9 @@
+import 'dotenv/config';
 import express from 'express';
 import multer from 'multer';
+import multerS3 from 'multer-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 import path from 'path';
-import fs from 'fs/promises';
-import { fileURLToPath } from 'url';
 import { saveSensorData, getLatestData } from '../services/sensorDataService.js';
 import { getSiloIdByKitCode, getSiloInfoByKitCode } from '../services/silosService.js';
 import { saveCameraFrame } from '../services/cameraService.js';
@@ -11,30 +12,41 @@ import { evaluateAlerts } from '../services/alertsService.js';
 
 const router = express.Router();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const UPLOADS_DIR = path.join(__dirname, '..', 'uploads', 'silo-photos');
+// ── Configuración de S3 para fotos de silos ────────────────────────────────────
+const rawBucket = process.env.AWS_BUCKET_NAME;
+const bucketName = rawBucket && rawBucket.startsWith('arn:aws:s3:::')
+  ? rawBucket.split(':::').pop()
+  : rawBucket;
 
-const storage = multer.diskStorage({
-  destination: async (_req, _file, cb) => {
-    try {
-      await fs.mkdir(UPLOADS_DIR, { recursive: true });
-      cb(null, UPLOADS_DIR);
-    } catch (e) {
-      cb(e);
-    }
-  },
-  filename: (req, file, cb) => {
-    const kit = String(req.body?.kit_code || 'unknown').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
-    const ext = (file.originalname && path.extname(file.originalname)) || (file.mimetype === 'image/png' ? '.png' : '.jpg');
-    const safeExt = ext.length <= 10 ? ext : '.jpg';
-    cb(null, `${kit}_${Date.now()}${safeExt}`);
-  }
+if (!bucketName) {
+  throw new Error('AWS_BUCKET_NAME no está definido. Configurá el nombre del bucket en el .env del backend.');
+}
+
+const s3 = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+    ? {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      }
+    : undefined,
 });
 
 const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  storage: multerS3({
+    s3,
+    bucket: bucketName,
+    acl: 'public-read',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const kit = String(req.body?.kit_code || 'unknown').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+      const ext = (file.originalname && path.extname(file.originalname)) || (file.mimetype === 'image/png' ? '.png' : '.jpg');
+      const safeExt = ext.length <= 10 ? ext : '.jpg';
+      const filename = `${kit}_${Date.now()}${safeExt}`;
+      cb(null, `silo-photos/${filename}`);
+    },
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
 });
 
 // POST /api/sensor-data - Recibir datos de sensores (siloId o kit_code para identificar el silo)
@@ -146,8 +158,8 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
     const capacidadCalc = parseFloat((volTotalM3 * densidad).toFixed(2));
     // ──────────────────────────────────────────────────────────────────────────
 
-    const fotoSiloPath = `/uploads/silo-photos/${req.file.filename}`;
-    const fotoSiloUrl = `${req.protocol}://${req.get('host')}${fotoSiloPath}`;
+    // URL pública en S3 generada por multer-s3
+    const fotoSiloUrl = req.file.location;
 
     // Alinear flags de riesgo con los umbrales de alertas (importados del servicio)
     const humidityRisk = humedad > 70;   // igual que HUMIDITY_CRITICAL threshold
@@ -163,7 +175,7 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
       presion: Number.isFinite(presion) ? presion : null,
       grainLevel: { percentage, tons, distance: distancia_vacia, capacity: capacidadCalc, density: densidad, humRef },
       gases: { co2: gas, hasRisk: gasRisk },
-      imagePath: fotoSiloPath
+      imagePath: fotoSiloUrl
     };
 
     await saveSensorData(payload);
@@ -172,15 +184,6 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
     evaluateAlerts(siloId, payload, distancia_vacia, alturaTotalCm).catch((e) =>
       console.warn('⚠️  evaluateAlerts:', e.message)
     );
-
-    // Cargar la imagen al cameraStore en memoria para que GET /api/camera/:siloId
-    // devuelva inmediatamente la última foto sin necesidad de un endpoint separado
-    try {
-      const fileBuffer = await fs.readFile(req.file.path);
-      saveCameraFrame(siloId, fileBuffer, 'image/jpeg');
-    } catch (camErr) {
-      console.warn('⚠️  No se pudo cargar imagen al cameraStore:', camErr.message);
-    }
 
     res.status(201).json({
       kit_code,
@@ -198,7 +201,6 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
       humRef,
       grainType,
       capacidadCalc,
-      fotoSiloPath,
       fotoSiloUrl
     });
   } catch (error) {

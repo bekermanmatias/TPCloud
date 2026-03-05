@@ -1,5 +1,5 @@
 // Inicialización de base de datos PostgreSQL
-
+import 'dotenv/config';
 import pg from 'pg';
 import bcrypt from 'bcrypt';
 const { Pool } = pg;
@@ -10,16 +10,38 @@ let pool = null;
  * Inicializa la conexión a la base de datos
  */
 export async function initDatabase() {
-  if (!process.env.DATABASE_URL) {
-    console.log('⚠️  DATABASE_URL no configurada, usando almacenamiento en memoria');
+  const {
+    DB_HOST,
+    DB_PORT,
+    DB_USER,
+    DB_PASSWORD,
+    DB_NAME,
+    DATABASE_URL,
+    DATABASE_SSL,
+  } = process.env;
+
+  if (!DB_HOST && !DATABASE_URL) {
+    console.log('⚠️  Base de datos no configurada (DB_HOST / DATABASE_URL), usando modo sin persistencia');
     return;
   }
 
   try {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false
-    });
+    if (DB_HOST) {
+      pool = new Pool({
+        host: DB_HOST,
+        port: DB_PORT ? Number(DB_PORT) : 5432,
+        user: DB_USER,
+        password: DB_PASSWORD,
+        database: DB_NAME,
+        ssl: DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      });
+    } else {
+      // Fallback para entornos que usen DATABASE_URL completa
+      pool = new Pool({
+        connectionString: DATABASE_URL,
+        ssl: DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false,
+      });
+    }
 
     // Probar conexión
     await pool.query('SELECT NOW()');

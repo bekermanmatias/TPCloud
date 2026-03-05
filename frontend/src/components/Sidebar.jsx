@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Warehouse, BarChart3, Settings, Map, LayoutGrid } from 'lucide-react';
+import { LayoutDashboard, Warehouse, BarChart3, Settings, Map, Folder } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 function Sidebar() {
@@ -12,7 +12,7 @@ function Sidebar() {
   const menuItems = [
     { id: 'dashboard', label: 'Panel de Control', icon: LayoutDashboard, path: '/' },
     { id: 'silos',     label: 'Silos',            icon: Warehouse,        path: '/silos' },
-    { id: 'galeria',   label: 'Galería',           icon: LayoutGrid,       path: '/galeria' },
+    { id: 'galeria',   label: 'Galería',          icon: Folder,           path: '/galeria' },
     { id: 'map',       label: 'Mapa',             icon: Map,              path: '/mapa' },
     { id: 'reports',   label: 'Reportes',         icon: BarChart3,        path: '/reportes' },
     { id: 'settings',  label: 'Configuración',    icon: Settings,         path: '/configuracion' },

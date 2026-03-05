@@ -21,7 +21,7 @@ import {
   Droplets,
   Maximize2,
   X,
-  LayoutGrid,
+  Folder,
   Thermometer as ThermometerIcon,
   Wind,
   Package,
@@ -686,7 +686,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                             className="bg-orange-600/80 hover:bg-orange-700 text-white rounded-md p-1.5 disabled:opacity-50 transition-colors"
                             title="Guardar captura en galería"
                           >
-                            <LayoutGrid className="h-3.5 w-3.5" />
+                            <Folder className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => setLightbox({ src: getSiloCameraUrl(silo.id), alt: `Cámara ${silo.name}` })}
@@ -729,7 +729,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
             ? 'bg-green-600 text-white'
             : 'bg-red-600 text-white'
         }`}>
-          <LayoutGrid className="h-4 w-4" />
+          <Folder className="h-4 w-4" />
           {captureFeedback.msg}
         </div>
       )}
@@ -866,7 +866,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                                     className="bg-orange-600/80 hover:bg-orange-700 text-white rounded-md p-1.5 disabled:opacity-50 transition-colors"
                                     title="Guardar en galería"
                                   >
-                                    <LayoutGrid className="h-3.5 w-3.5" />
+                                    <Folder className="h-3.5 w-3.5" />
                                   </button>
                                   <button
                                     onClick={() => setLightbox({ src: hvImgUrl, alt: 'Foto histórica' })}

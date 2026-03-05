@@ -336,19 +336,11 @@ function SiloHistory({ histories, siloName }) {
             </div>
 
             {/* Separador + encabezado CO₂ */}
-            <div className="flex items-center justify-between mt-6 mb-1 px-1">
+            <div className="flex flex-col items-center mt-6 mb-1 gap-1">
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-violet-400" />
                 <span className="text-xs font-medium text-slate-500">CO₂ / Gases (ppm)</span>
               </div>
-              {lastIQA && lastCO2 != null && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-slate-400">IQA actual:</span>
-                  <span className={`font-semibold px-2 py-0.5 rounded-full ${lastIQA.bg} ${lastIQA.color}`}>
-                    {lastCO2} ppm — {lastIQA.label}
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* GRÁFICO CO₂ con líneas de umbral */}

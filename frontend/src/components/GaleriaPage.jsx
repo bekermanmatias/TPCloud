@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { getGallery, deleteCapture, getSiloHistoryImageUrl } from '../services/api';
 import {
-  Trash2, Maximize2, X, Camera, Loader2, LayoutGrid,
+  Trash2, Maximize2, X, Camera, Loader2, Folder,
   Thermometer, Droplets, Wind, Package, RefreshCw,
   ChevronDown, Filter
 } from 'lucide-react';
@@ -204,7 +204,7 @@ export default function GaleriaPage() {
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-4">
           <div className="p-5 rounded-2xl bg-gray-50 border border-gray-100">
-            <LayoutGrid className="h-12 w-12 text-gray-300" />
+            <Folder className="h-12 w-12 text-gray-300" />
           </div>
           <div className="text-center">
             <p className="font-medium text-gray-500">

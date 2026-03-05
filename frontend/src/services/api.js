@@ -80,6 +80,10 @@ export const getSiloCameraUrl = (siloId) => {
  */
 export const getSiloHistoryImageUrl = (imagePath) => {
   if (!imagePath) return null;
+  // Si la ruta ya es una URL absoluta (S3), devolverla tal cual
+  if (typeof imagePath === 'string' && /^https?:\/\//i.test(imagePath)) {
+    return imagePath;
+  }
   return `${API_ORIGIN}${imagePath}`;
 };
 
