@@ -171,7 +171,7 @@ export const getGallery = async () => {
 /**
  * Guarda una captura en la galería.
  * @param {{ silo_id, silo_name, image_path, captured_at, temperature, humidity, co2,
- *           grain_level_percentage, grain_level_tons, presion, source }} data
+ *           grain_level_percentage, grain_level_tons, presion, source, note? }} data
  */
 export const saveCapture = async (data) => {
   const response = await api.post('/gallery', data);

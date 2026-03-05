@@ -314,6 +314,13 @@ export default function GaleriaPage() {
                     </div>
                   </div>
 
+                  {/* Nota */}
+                  {item.note && (
+                    <p className="mt-1 text-xs text-gray-500 line-clamp-3">
+                      {item.note}
+                    </p>
+                  )}
+
                   {/* Botón eliminar */}
                   <div className="mt-auto pt-1 flex justify-end">
                     <button

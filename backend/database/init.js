@@ -147,6 +147,7 @@ async function createTables() {
       grain_level_tons DECIMAL(10,2),
       presion DECIMAL(7,2),
       source VARCHAR(20) DEFAULT 'live',
+      note TEXT,
       saved_at TIMESTAMPTZ DEFAULT NOW()
     );
   `;
@@ -167,6 +168,7 @@ async function createTables() {
     await pool.query(createAlertsTable);
     await pool.query(createAlertConfigsTable);
     await pool.query(createGalleryCapturesTable);
+    await migrateGalleryAddNote();
     await pool.query(createIndexes);
     await migrateSilosAddUserId();
     await migrateSilosAddKitCode();
@@ -244,6 +246,19 @@ async function migrateSensorDataAddPresion() {
   if (hasColumn.rows.length > 0) return;
 
   await pool.query('ALTER TABLE sensor_data ADD COLUMN presion DECIMAL(7, 2)');
+}
+
+/**
+ * Migración: añadir note (TEXT, nullable) a gallery_captures si no existe
+ */
+async function migrateGalleryAddNote() {
+  const hasColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'gallery_captures' AND column_name = 'note'
+  `);
+  if (hasColumn.rows.length > 0) return;
+
+  await pool.query('ALTER TABLE gallery_captures ADD COLUMN note TEXT');
 }
 
 /**

@@ -125,6 +125,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
 
   const handleSaveLiveCapture = async () => {
     if (savingCapture) return;
+    const noteInput = window.prompt('Nota para esta captura (opcional):', '');
     const d = histories[0];
     setSavingCapture(true);
     try {
@@ -138,8 +139,9 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
       co2:                   d?.gases?.co2 ?? (typeof d?.gases === 'number' ? d.gases : null),
       grain_level_percentage: d?.grainLevel?.percentage ?? null,
       grain_level_tons:      d?.grainLevel?.tons ?? null,
-      presion:               d?.presion ?? null,
-      source:                'live',
+        presion:               d?.presion ?? null,
+        source:                'live',
+        note:                  noteInput && noteInput.trim() ? noteInput.trim() : null,
       });
       showFeedback('Captura guardada en Galería', true);
     } catch {
@@ -153,6 +155,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     if (savingHistCapture) return;
     const d = histVisual[histVisualIdx];
     if (!d) return;
+    const noteInput = window.prompt('Nota para esta captura histórica (opcional):', '');
     setSavingHistCapture(true);
     try {
       await saveCapture({
@@ -165,8 +168,9 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
       co2:                   d.gases?.co2 ?? (typeof d.gases === 'number' ? d.gases : null),
       grain_level_percentage: d.grainLevel?.percentage ?? null,
       grain_level_tons:      d.grainLevel?.tons ?? null,
-      presion:               d.presion ?? null,
-      source:                'historical',
+        presion:               d.presion ?? null,
+        source:                'historical',
+        note:                  noteInput && noteInput.trim() ? noteInput.trim() : null,
       });
       showFeedback('Captura guardada en Galería', true);
     } catch {

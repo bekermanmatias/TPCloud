@@ -13,7 +13,7 @@ router.get('/', requireAuth, async (req, res) => {
     const result = await pool.query(
       `SELECT id, silo_id, silo_name, image_path, captured_at,
               temperature, humidity, co2, grain_level_percentage,
-              grain_level_tons, presion, source, saved_at
+              grain_level_tons, presion, source, note, saved_at
        FROM gallery_captures
        WHERE user_id = $1
        ORDER BY saved_at DESC`,
@@ -32,13 +32,29 @@ router.post('/', requireAuth, async (req, res) => {
   const {
     silo_id, silo_name, image_path, captured_at,
     temperature, humidity, co2,
-    grain_level_percentage, grain_level_tons, presion, source
+    grain_level_percentage, grain_level_tons, presion, source,
+    note,
   } = req.body;
 
   if (!silo_id) return res.status(400).json({ error: 'silo_id requerido' });
 
   if (!pool) {
-    return res.status(201).json({ id: Date.now(), silo_id, silo_name, image_path, captured_at, saved_at: new Date().toISOString() });
+    return res.status(201).json({
+      id: Date.now(),
+      silo_id,
+      silo_name,
+      image_path,
+      captured_at,
+      temperature,
+      humidity,
+      co2,
+      grain_level_percentage,
+      grain_level_tons,
+      presion,
+      source,
+      note: note || null,
+      saved_at: new Date().toISOString(),
+    });
   }
 
   try {
@@ -55,15 +71,15 @@ router.post('/', requireAuth, async (req, res) => {
       `INSERT INTO gallery_captures
          (user_id, silo_id, silo_name, image_path, captured_at,
           temperature, humidity, co2, grain_level_percentage,
-          grain_level_tons, presion, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+          grain_level_tons, presion, source, note)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [
         req.userId, silo_id, silo_name, image_path || null,
         captured_at || new Date().toISOString(),
         temperature ?? null, humidity ?? null, co2 ?? null,
         grain_level_percentage ?? null, grain_level_tons ?? null,
-        presion ?? null, source || 'live'
+        presion ?? null, source || 'live', note || null,
       ]
     );
     res.status(201).json(result.rows[0]);
