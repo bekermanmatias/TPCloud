@@ -76,6 +76,8 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const [savingCapture, setSavingCapture] = useState(false); // live camera
   const [savingHistCapture, setSavingHistCapture] = useState(false); // hist visual
   const [captureFeedback, setCaptureFeedback] = useState(null); // { msg, ok }
+  const [noteModal, setNoteModal] = useState(null); // 'live' | 'hist' | null
+  const [noteText, setNoteText] = useState('');
 
   // ── Historial visual (lazy) — solo carga al abrir el tab ────────────────
   const [histVisual, setHistVisual]         = useState([]);
@@ -123,9 +125,8 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     setTimeout(() => setCaptureFeedback(null), 3000);
   };
 
-  const handleSaveLiveCapture = async () => {
+  const doSaveLiveCapture = async (note) => {
     if (savingCapture) return;
-    const noteInput = window.prompt('Nota para esta captura (opcional):', '');
     const d = histories[0];
     setSavingCapture(true);
     try {
@@ -134,14 +135,14 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         silo_name:             silo.name,
         image_path:            d?.imagePath ?? null,
         captured_at:           d?.timestamp ?? new Date().toISOString(),
-      temperature:           d?.temperature?.average ?? d?.temperature ?? null,
-      humidity:              d?.humidity ?? null,
-      co2:                   d?.gases?.co2 ?? (typeof d?.gases === 'number' ? d.gases : null),
-      grain_level_percentage: d?.grainLevel?.percentage ?? null,
-      grain_level_tons:      d?.grainLevel?.tons ?? null,
+        temperature:           d?.temperature?.average ?? d?.temperature ?? null,
+        humidity:              d?.humidity ?? null,
+        co2:                   d?.gases?.co2 ?? (typeof d?.gases === 'number' ? d.gases : null),
+        grain_level_percentage: d?.grainLevel?.percentage ?? null,
+        grain_level_tons:      d?.grainLevel?.tons ?? null,
         presion:               d?.presion ?? null,
         source:                'live',
-        note:                  noteInput && noteInput.trim() ? noteInput.trim() : null,
+        note:                  note ?? null,
       });
       showFeedback('Captura guardada en Galería', true);
     } catch {
@@ -151,11 +152,10 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     }
   };
 
-  const handleSaveHistCapture = async () => {
+  const doSaveHistCapture = async (note) => {
     if (savingHistCapture) return;
     const d = histVisual[histVisualIdx];
     if (!d) return;
-    const noteInput = window.prompt('Nota para esta captura histórica (opcional):', '');
     setSavingHistCapture(true);
     try {
       await saveCapture({
@@ -163,14 +163,14 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         silo_name:             silo.name,
         image_path:            d.imagePath ?? null,
         captured_at:           d.timestamp ?? null,
-      temperature:           d.temperature?.average ?? d.temperature ?? null,
-      humidity:              d.humidity ?? null,
-      co2:                   d.gases?.co2 ?? (typeof d.gases === 'number' ? d.gases : null),
-      grain_level_percentage: d.grainLevel?.percentage ?? null,
-      grain_level_tons:      d.grainLevel?.tons ?? null,
+        temperature:           d.temperature?.average ?? d.temperature ?? null,
+        humidity:              d.humidity ?? null,
+        co2:                   d.gases?.co2 ?? (typeof d.gases === 'number' ? d.gases : null),
+        grain_level_percentage: d.grainLevel?.percentage ?? null,
+        grain_level_tons:      d.grainLevel?.tons ?? null,
         presion:               d.presion ?? null,
         source:                'historical',
-        note:                  noteInput && noteInput.trim() ? noteInput.trim() : null,
+        note:                  note ?? null,
       });
       showFeedback('Captura guardada en Galería', true);
     } catch {
@@ -178,6 +178,16 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     } finally {
       setSavingHistCapture(false);
     }
+  };
+
+  const handleSaveLiveCapture = () => {
+    setNoteText('');
+    setNoteModal('live');
+  };
+
+  const handleSaveHistCapture = () => {
+    setNoteText('');
+    setNoteModal('hist');
   };
 
   // ── Editar silo ────────────────────────────────────────────────────────────
@@ -390,6 +400,67 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
 
   return (
     <>
+    {/* Modal para nota de captura (live / historial) */}
+    {noteModal && (
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setNoteModal(null)}>
+        <div
+          className="bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold text-gray-900">
+              Guardar captura en galería
+            </h3>
+            <button
+              onClick={() => setNoteModal(null)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            Podés agregar una nota opcional para recordar por qué guardaste esta captura.
+          </p>
+          <textarea
+            rows={3}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-yellow focus:ring-offset-1"
+            placeholder="Ej: Lluvia fuerte, revisar techos y ventilación."
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setNoteModal(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={noteModal === 'live' ? savingCapture : savingHistCapture}
+              onClick={async () => {
+                const note = noteText.trim() || null;
+                if (noteModal === 'live') {
+                  await doSaveLiveCapture(note);
+                } else if (noteModal === 'hist') {
+                  await doSaveHistCapture(note);
+                }
+                setNoteModal(null);
+                setNoteText('');
+              }}
+            >
+              {noteModal === 'live'
+                ? (savingCapture ? 'Guardando...' : 'Guardar captura')
+                : (savingHistCapture ? 'Guardando...' : 'Guardar captura')}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="space-y-4">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-600">
