@@ -10,7 +10,7 @@ import GlobalAlertsPanel from './components/GlobalAlertsPanel';
 import ConfiguracionPage from './components/ConfiguracionPage';
 import GaleriaPage from './components/GaleriaPage';
 import { getSilos, getSiloById, getActiveAlerts } from './services/api';
-import { Warehouse, Wifi, AlertTriangle, Package, Map, BarChart3, Clock } from 'lucide-react';
+import { Warehouse, Wifi, AlertTriangle, Package, Map, BarChart3, Clock, RefreshCw } from 'lucide-react';
 
 // ── Layout compartido (sidebar + contenido) ────────────────────────────────
 function AppLayout({ children }) {
@@ -67,12 +67,17 @@ function DashboardPage({ silos, loading, onSilosChange }) {
   const [alerts,  setAlerts]  = useState([]);
 
   // Cargar alertas activas del usuario (polling)
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+
+  const loadAlerts = async () => {
+    setLoadingAlerts(true);
+    try { setAlerts(await getActiveAlerts()); } catch { /* silencioso */ }
+    finally { setLoadingAlerts(false); }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try { setAlerts(await getActiveAlerts()); } catch { /* silencioso */ }
-    };
-    load();
-    const iv = setInterval(load, 30_000);
+    loadAlerts();
+    const iv = setInterval(loadAlerts, 30_000);
     return () => clearInterval(iv);
   }, []);
 
@@ -101,9 +106,19 @@ function DashboardPage({ silos, loading, onSilosChange }) {
     <AppLayout>
       <div className="space-y-6">
         {/* Encabezado */}
-        <div>
-          <h1 className="text-3xl font-semibold text-gray-900 mb-1">Panel de Control</h1>
-          <p className="text-gray-500 text-sm">Resumen general de tus silos</p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-gray-900 mb-1">Panel de Control</h1>
+            <p className="text-gray-500 text-sm">Resumen general de tus silos</p>
+          </div>
+          <button
+            onClick={() => { onSilosChange?.(); loadAlerts(); }}
+            disabled={loading || loadingAlerts}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading || loadingAlerts ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
         </div>
 
         {/* Tarjetas de estadísticas */}
@@ -182,7 +197,7 @@ function SilosPage({ silos, loading, onSilosChange }) {
     <AppLayout>
       <div className="space-y-6">
         {/* Encabezado */}
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-semibold text-gray-900 mb-1">Silos</h1>
             <p className="text-gray-500 text-sm">
@@ -203,6 +218,14 @@ function SilosPage({ silos, loading, onSilosChange }) {
               )}
             </p>
           </div>
+          <button
+            onClick={onSilosChange}
+            disabled={loading}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Actualizar
+          </button>
         </div>
 
         <SilosTable

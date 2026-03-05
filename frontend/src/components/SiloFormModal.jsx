@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { X, Cpu } from 'lucide-react';
+import { X } from 'lucide-react';
 import { GRAIN_TYPES, getDensity, calcCapacidad } from '../constants/grainDensities';
 
 export default function SiloFormModal({ open, silo = null, onClose, onSave, saving, error = '' }) {
@@ -53,14 +53,14 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={onClose}>
-      <Card className="w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <CardHeader className="flex flex-row items-center justify-between">
+      <Card className="w-full max-w-md shadow-xl text-left" onClick={(e) => e.stopPropagation()}>
+        <CardHeader className="flex flex-row items-center justify-between text-left">
           <CardTitle>{isEdit ? 'Editar silo' : 'Agregar silo'}</CardTitle>
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
         </CardHeader>
-        <CardContent>
+        <CardContent className="text-left">
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
@@ -83,6 +83,24 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="Ej: Campo Norte"
               />
+            </div>
+            {/* Vincular dispositivo IoT (kit_code) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Código de kit IoT (opcional)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Ingresá el código del kit del dispositivo físico. Los datos de sensores que envíe con ese código se asociarán a este silo.
+              </p>
+              <Input
+                value={kitCode}
+                onChange={(e) => setKitCode(e.target.value)}
+                placeholder="Ej: SILO-A1B2"
+                autoComplete="off"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Podés dejarlo vacío y vincular el dispositivo más adelante.
+              </p>
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -147,26 +165,6 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
                 />
               </div>
             </div>
-            {isEdit && (
-              <div className="border-t pt-4">
-                <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
-                  <Cpu className="h-4 w-4 text-gray-400" />
-                  Vincular dispositivo IoT
-                </label>
-                <p className="text-xs text-gray-500 mb-2">
-                  Ingresá el código del kit del dispositivo físico. Los datos de sensores que envíe con ese código se asociarán a este silo.
-                </p>
-                <Input
-                  value={kitCode}
-                  onChange={(e) => setKitCode(e.target.value)}
-                  placeholder="Ej: SILO-A1B2"
-                  autoComplete="off"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Dejá vacío para desvincular el dispositivo.
-                </p>
-              </div>
-            )}
             <div className="flex gap-2 justify-end pt-2">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar

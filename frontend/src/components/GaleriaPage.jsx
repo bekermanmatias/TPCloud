@@ -126,11 +126,11 @@ export default function GaleriaPage() {
       )}
 
       {/* Cabecera */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Galería</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Capturas guardadas desde el detalle de cada silo
+          <h1 className="text-3xl font-semibold text-gray-900 mb-1">Galería</h1>
+          <p className="text-gray-500 text-sm">
+            Capturas guardadas desde el detalle de cada silo.
           </p>
         </div>
         <button
