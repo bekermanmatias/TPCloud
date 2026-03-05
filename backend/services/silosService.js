@@ -1,157 +1,130 @@
-// Servicio para manejar información de silos
-// Por ahora usa almacenamiento en memoria, luego se integrará con PostgreSQL
+import { getPool } from '../database/init.js';
+import { getLatestData } from './sensorDataService.js';
 
-let silosStore = new Map();
-
-// Inicializar con silos de ejemplo en diferentes ubicaciones
-if (silosStore.size === 0) {
-  // Campo Norte
-  silosStore.set('silo-001', {
-    id: 'silo-001',
-    name: 'Silo Principal',
-    location: 'Campo Norte',
-    locationId: 'campo-norte',
-    capacity: 100, // toneladas
-    height: 10, // metros
-    diameter: 6, // metros
-    grainType: 'Soja',
-    latitude: -34.9215,
-    longitude: -57.9545,
-    createdAt: new Date().toISOString()
-  });
-  
-  silosStore.set('silo-002', {
-    id: 'silo-002',
-    name: 'Silo Secundario',
-    location: 'Campo Norte',
-    locationId: 'campo-norte',
-    capacity: 80,
-    height: 9,
-    diameter: 5.5,
-    grainType: 'Maíz',
-    latitude: -34.9220,
-    longitude: -57.9550,
-    createdAt: new Date().toISOString()
-  });
-  
-  // Campo Sur
-  silosStore.set('silo-003', {
-    id: 'silo-003',
-    name: 'Silo Sur 1',
-    location: 'Campo Sur',
-    locationId: 'campo-sur',
-    capacity: 120,
-    height: 11,
-    diameter: 7,
-    grainType: 'Trigo',
-    latitude: -34.9300,
-    longitude: -57.9600,
-    createdAt: new Date().toISOString()
-  });
-  
-  silosStore.set('silo-004', {
-    id: 'silo-004',
-    name: 'Silo Sur 2',
-    location: 'Campo Sur',
-    locationId: 'campo-sur',
-    capacity: 90,
-    height: 10,
-    diameter: 6,
-    grainType: 'Soja',
-    latitude: -34.9305,
-    longitude: -57.9605,
-    createdAt: new Date().toISOString()
-  });
-  
-  // Planta Industrial
-  silosStore.set('silo-005', {
-    id: 'silo-005',
-    name: 'Silo Industrial 1',
-    location: 'Planta Industrial',
-    locationId: 'planta-industrial',
-    capacity: 150,
-    height: 12,
-    diameter: 8,
-    grainType: 'Soja',
-    latitude: -34.9100,
-    longitude: -57.9500,
-    createdAt: new Date().toISOString()
-  });
+function rowToSilo(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    location: row.location || '',
+    locationId: row.location ? row.location.toLowerCase().replace(/\s+/g, '-') : '',
+    capacity: row.capacity != null ? Number(row.capacity) : 100,
+    height: row.height != null ? Number(row.height) : 10,
+    diameter: row.diameter != null ? Number(row.diameter) : 6,
+    grainType: row.grain_type || 'Soja',
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString()
+  };
 }
 
 /**
- * Obtiene todos los silos
- * @returns {Array} Array de silos con sus últimos datos
+ * Lista todos los silos del usuario
+ * @param {number} userId
+ * @returns {Promise<Array>}
  */
-export async function getAllSilos() {
-  const { getLatestData } = await import('./sensorDataService.js');
-  
-  const silos = Array.from(silosStore.values());
-  
-  // Agregar últimos datos a cada silo
+export async function getAllSilos(userId) {
+  const pool = getPool();
+  if (!pool) return [];
+
+  const result = await pool.query(
+    'SELECT id, name, location, capacity, height, diameter, grain_type, created_at FROM silos WHERE user_id = $1 ORDER BY name',
+    [userId]
+  );
+
+  const silos = result.rows.map(rowToSilo);
   const silosWithData = await Promise.all(
     silos.map(async (silo) => {
       const latestData = await getLatestData(silo.id);
-      return {
-        ...silo,
-        latestData: latestData || null
-      };
+      return { ...silo, latestData: latestData || null };
     })
   );
-  
   return silosWithData;
 }
 
 /**
- * Obtiene un silo por ID
- * @param {string} id - ID del silo
- * @returns {Object|null} Silo o null si no existe
+ * Obtiene un silo por ID solo si pertenece al usuario
  */
-export async function getSiloById(id) {
-  const silo = silosStore.get(id);
-  
-  if (!silo) {
-    return null;
-  }
-  
-  // Obtener último dato del silo
-  const { getLatestData } = await import('./sensorDataService.js');
+export async function getSiloById(id, userId) {
+  const pool = getPool();
+  if (!pool) return null;
+
+  const result = await pool.query(
+    'SELECT id, name, location, capacity, height, diameter, grain_type, created_at FROM silos WHERE id = $1 AND user_id = $2',
+    [id, userId]
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+
+  const silo = rowToSilo(row);
   const latestData = await getLatestData(id);
-  
-  return {
-    ...silo,
-    latestData: latestData || null
-  };
+  return { ...silo, latestData: latestData || null };
 }
 
 /**
- * Obtiene historial de datos de un silo
- * @param {string} id - ID del silo
- * @param {Object} options - Opciones (limit, hours)
- * @returns {Array} Array de datos históricos
+ * Obtiene historial de datos de un silo (delegado a sensorDataService)
  */
 export async function getSiloHistory(id, options = {}) {
   const { getSiloHistory } = await import('./sensorDataService.js');
-  return await getSiloHistory(id, options);
+  return getSiloHistory(id, options);
 }
 
 /**
- * Crea un nuevo silo
- * @param {Object} siloData - Datos del silo
- * @returns {Object} Silo creado
+ * Crea un nuevo silo para el usuario
+ * @param {number} userId
+ * @param {{ name: string, location?: string, capacity?: number, height?: number, diameter?: number, grainType?: string }} data
  */
-export async function createSilo(siloData) {
-  const silo = {
-    id: siloData.id || `silo-${Date.now()}`,
-    name: siloData.name || 'Nuevo Silo',
-    location: siloData.location || '',
-    capacity: siloData.capacity || 100,
-    height: siloData.height || 10,
-    grainType: siloData.grainType || 'Soja',
-    createdAt: new Date().toISOString()
-  };
-  
-  silosStore.set(silo.id, silo);
-  return silo;
+export async function createSilo(userId, data) {
+  const pool = getPool();
+  if (!pool) throw new Error('Base de datos no disponible');
+
+  const id = data.id || `silo-${Date.now()}`;
+  const name = (data.name || 'Nuevo Silo').trim();
+  const location = (data.location || '').trim() || null;
+  const capacity = data.capacity != null ? Number(data.capacity) : 100;
+  const height = data.height != null ? Number(data.height) : 10;
+  const diameter = data.diameter != null ? Number(data.diameter) : 6;
+  const grainType = (data.grainType || 'Soja').trim();
+
+  await pool.query(
+    `INSERT INTO silos (id, user_id, name, location, capacity, height, diameter, grain_type)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [id, userId, name, location, capacity, height, diameter, grainType]
+  );
+
+  return getSiloById(id, userId);
 }
 
+/**
+ * Actualiza un silo (solo si pertenece al usuario)
+ */
+export async function updateSilo(id, userId, data) {
+  const pool = getPool();
+  if (!pool) throw new Error('Base de datos no disponible');
+
+  const existing = await getSiloById(id, userId);
+  if (!existing) return null;
+
+  const name = (data.name !== undefined ? data.name : existing.name).trim();
+  const location = (data.location !== undefined ? data.location : existing.location).trim() || null;
+  const capacity = data.capacity != null ? Number(data.capacity) : existing.capacity;
+  const height = data.height != null ? Number(data.height) : existing.height;
+  const diameter = data.diameter != null ? Number(data.diameter) : existing.diameter;
+  const grainType = (data.grainType !== undefined ? data.grainType : existing.grainType).trim();
+
+  await pool.query(
+    `UPDATE silos SET name = $1, location = $2, capacity = $3, height = $4, diameter = $5, grain_type = $6 WHERE id = $7 AND user_id = $8`,
+    [name, location, capacity, height, diameter, grainType, id, userId]
+  );
+
+  return getSiloById(id, userId);
+}
+
+/**
+ * Elimina un silo (solo si pertenece al usuario). CASCADE borra sensor_data.
+ */
+export async function deleteSilo(id, userId) {
+  const pool = getPool();
+  if (!pool) throw new Error('Base de datos no disponible');
+
+  const result = await pool.query('DELETE FROM silos WHERE id = $1 AND user_id = $2 RETURNING id', [id, userId]);
+  return result.rowCount > 0;
+}

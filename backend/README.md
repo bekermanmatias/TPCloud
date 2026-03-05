@@ -59,6 +59,10 @@ npm start
 - `GET /api/silos/:id/history` - Historial de datos de un silo
   - Query params: `limit` (default: 100), `hours` (default: 24)
 
+### Cámara (ESP32-CAM)
+- `POST /api/camera/:siloId` - Recibir foto JPEG del silo (body: imagen binaria, `Content-Type: image/jpeg`, máx. 2 MB)
+- `GET /api/camera/:siloId` - Obtener la última imagen del silo (respuesta: imagen JPEG)
+
 ## Formato de Datos
 
 ### POST /api/sensor-data

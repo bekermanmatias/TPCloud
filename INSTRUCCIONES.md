@@ -91,12 +91,15 @@ INTERVAL_MS=5000
 
 ### Backend
 
-Edita `backend/.env`:
+Copia `backend/.env.example` a `backend/.env` y configura:
 
 ```env
 PORT=3000
-# DATABASE_URL=postgresql://usuario:password@localhost:5432/salgest
+DATABASE_URL=postgresql://usuario:password@localhost:5432/salgest
+JWT_SECRET=un-secreto-seguro-para-jwt
 ```
+
+**Importante:** Para usar la aplicación (login, silos y persistencia) es necesario tener PostgreSQL y `DATABASE_URL` configurados. Sin base de datos no podrás iniciar sesión ni gestionar silos.
 
 ### Frontend
 
@@ -122,14 +125,13 @@ El frontend se conecta automáticamente a `http://localhost:3000/api` por defect
 
 ## 📝 Notas
 
-- Por defecto, el backend usa almacenamiento en memoria (los datos se pierden al reiniciar)
-- Para persistencia, configura PostgreSQL en `backend/.env`
-- El simulador puede ejecutarse independientemente para testing
+- La aplicación requiere **PostgreSQL** y variables de entorno en `backend/.env` para login y gestión de silos.
+- Los datos de sensores y silos se guardan en la base de datos.
+- El simulador puede enviar datos a cualquier silo existente (configura `SILO_ID` con el id de un silo tuyo).
 
 ## 🔄 Próximos Pasos
 
-1. Configurar PostgreSQL para persistencia de datos
-2. Integrar con AWS IoT Core
-3. Agregar autenticación y autorización
-4. Implementar más visualizaciones y reportes
+1. Integrar con AWS IoT Core
+2. Mapa y agrupación por campo/ubicación
+3. Más visualizaciones y reportes
 

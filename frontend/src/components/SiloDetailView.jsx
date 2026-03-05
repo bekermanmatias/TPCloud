@@ -17,13 +17,17 @@ import {
   Info,
   RefreshCw
 } from 'lucide-react';
-import { getSiloHistory } from '../services/api';
+import { getSiloHistory, getSiloCameraUrl } from '../services/api';
 import { SiloVisual } from './SiloVisual';
 import SiloHistory from './SiloHistory';
+
+const CAMERA_REFRESH_MS = 5000; // Actualizar imagen cada 5 s (igual que el ESP32 puede enviar)
 
 function SiloDetailView({ silo, onBack }) {
   const [histories, setHistories] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [cameraKey, setCameraKey] = useState(0); // Para forzar recarga de la imagen
+  const [cameraError, setCameraError] = useState(false); // Sin imagen o error de carga
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -38,6 +42,16 @@ function SiloDetailView({ silo, onBack }) {
 
     loadHistory();
     const interval = setInterval(loadHistory, 5000);
+    return () => clearInterval(interval);
+  }, [silo.id]);
+
+  // Actualizar imagen de cámara cada CAMERA_REFRESH_MS y reintentar si antes falló
+  useEffect(() => {
+    setCameraError(false);
+    const interval = setInterval(() => {
+      setCameraError(false);
+      setCameraKey((k) => k + 1);
+    }, CAMERA_REFRESH_MS);
     return () => clearInterval(interval);
   }, [silo.id]);
 
@@ -316,7 +330,7 @@ function SiloDetailView({ silo, onBack }) {
                   <div className="flex justify-between">
                     <span className="text-gray-600">CO₂:</span>
                     <span className="font-medium">
-                      {currentData?.co2?.toFixed(0) || '0'} ppm
+                      {(currentData?.gases?.co2 ?? currentData?.co2)?.toFixed(0) || '0'} ppm
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -340,10 +354,28 @@ function SiloDetailView({ silo, onBack }) {
               <div className="space-y-4">
                 {/* Dos visualizaciones lado a lado */}
                 <div className="grid grid-cols-2 gap-4">
-                  {/* Simulación de imagen de cámara */}
+                  {/* Imagen de cámara ESP32 o placeholder si no hay conexión */}
                   <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
-                    <div className="absolute inset-0 bg-gradient-radial from-gray-600 to-gray-900"></div>
-                    <Camera className="h-12 w-12 text-gray-400 relative z-10" />
+                    {!cameraError ? (
+                      <img
+                        key={cameraKey}
+                        src={getSiloCameraUrl(silo.id)}
+                        alt={`Cámara ${silo.name}`}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={() => setCameraError(true)}
+                        onLoad={() => setCameraError(false)}
+                      />
+                    ) : null}
+                    {cameraError && (
+                      <>
+                        <div className="absolute inset-0 bg-gradient-radial from-gray-600 to-gray-900" />
+                        <div className="relative z-10 text-center px-2">
+                          <Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-400">Conecta la cámara del ESP32</p>
+                          <p className="text-xs text-gray-500 mt-1">POST /api/camera/{silo.id}</p>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Contour Map - Vista 3D de la superficie */}

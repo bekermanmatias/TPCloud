@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { sensorDataRouter } from './routes/sensorData.js';
 import { silosRouter } from './routes/silos.js';
+import { cameraRouter } from './routes/camera.js';
+import { authRouter } from './routes/auth.js';
 import { initDatabase } from './database/init.js';
 
 dotenv.config();
@@ -21,8 +23,10 @@ app.use((req, res, next) => {
 });
 
 // Rutas
+app.use('/api/auth', authRouter);
 app.use('/api/sensor-data', sensorDataRouter);
 app.use('/api/silos', silosRouter);
+app.use('/api/camera', cameraRouter);
 
 // Ruta de salud
 app.get('/health', (req, res) => {
@@ -40,8 +44,10 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     endpoints: {
       health: '/health',
+      auth: '/api/auth (login, register)',
       sensorData: '/api/sensor-data',
-      silos: '/api/silos'
+      silos: '/api/silos',
+      camera: '/api/camera/:siloId'
     }
   });
 });
@@ -73,6 +79,8 @@ async function startServer() {
       console.log(`   - GET  /api/silos`);
       console.log(`   - GET  /api/silos/:id`);
       console.log(`   - GET  /api/silos/:id/history`);
+      console.log(`   - POST /api/camera/:siloId  (imagen JPEG)`);
+      console.log(`   - GET  /api/camera/:siloId  (última imagen)`);
     });
   } catch (error) {
     console.error('❌ Error al iniciar servidor:', error);

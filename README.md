@@ -151,6 +151,15 @@ Como el hardware físico no está disponible inicialmente, el proyecto incluye u
 
 El simulador envía datos al backend cada 5 segundos (configurable) y permite desarrollar y probar todo el sistema sin necesidad del hardware físico.
 
+## 📷 Cámara ESP32-CAM
+
+El sistema permite conectar una cámara en el ESP32 (ESP32-CAM) para ver la imagen en tiempo (casi) real en la vista de detalle de cada silo:
+
+- **Backend:** `POST /api/camera/:siloId` recibe la foto JPEG; `GET /api/camera/:siloId` devuelve la última imagen.
+- **Frontend:** en el detalle del silo se muestra la última imagen y se actualiza cada 5 segundos. Si no hay cámara conectada, se muestra un placeholder con instrucciones.
+
+Para configurar el firmware del ESP32 y enviar fotos al backend, ver [docs/ESP32_CAMARA.md](./docs/ESP32_CAMARA.md).
+
 ## 📝 Licencia
 
 Este proyecto es parte del trabajo académico para la materia Desarrollo de Software Cloud de la UTN FRLP.
