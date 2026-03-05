@@ -60,6 +60,9 @@ El sistema reemplaza inspecciones manuales peligrosas combinando:
 
 Cada dispositivo físico (kit ESP32) tiene un `kit_code` único, configurado por silo.
 
+> **Transporte actual:** el envío de datos se realiza vía **WiFi** usando peticiones HTTP directas al backend.  
+> **Pendiente (roadmap):** evaluar otros medios como **LoRa / LoRaWAN**, 4G/LTE o NB-IoT para entornos sin cobertura WiFi estable, manteniendo la misma capa de API en la nube.
+
 El ESP32 envía telemetría y foto en una sola llamada:
 
 ```text
