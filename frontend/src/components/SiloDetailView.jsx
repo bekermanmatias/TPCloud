@@ -199,6 +199,15 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const reloadRecentHistory = useCallback(async () => {
+    try {
+      const history = await getSiloHistory(silo.id, { limit: 100, hours: 720 });
+      setHistories(history);
+    } catch (error) {
+      console.error('Error al cargar historial:', error);
+    }
+  }, [silo.id]);
+
   const handleDelete = async () => {
     setDeleteLoading(true);
     try {
@@ -213,19 +222,10 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   };
 
   useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        // 100 registros / 30 días → suficiente para estadísticas y vista actual
-        const history = await getSiloHistory(silo.id, { limit: 100, hours: 720 });
-        setHistories(history);
-      } catch (error) {
-        console.error('Error al cargar historial:', error);
-      }
-    };
-    loadHistory();
-    const interval = setInterval(loadHistory, 5000);
+    reloadRecentHistory();
+    const interval = setInterval(reloadRecentHistory, 5000);
     return () => clearInterval(interval);
-  }, [silo.id]);
+  }, [reloadRecentHistory]);
 
   // La cámara en vivo siempre se refresca (ya no hay slider en la vista principal)
   useEffect(() => {
@@ -252,6 +252,15 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const distanciaVaciaCalc = (rawDistance != null && rawDistance > 0)
     ? rawDistance
     : alturaSiloCm * (1 - pctActual / 100);
+
+  // URL de imagen "en vivo": prioriza la última imagePath (S3/local), cae a /api/camera
+  const liveBaseUrl = currentData?.imagePath
+    ? getSiloHistoryImageUrl(currentData.imagePath)
+    : getSiloCameraUrl(silo.id);
+
+  const liveImageUrl = liveBaseUrl
+    ? `${liveBaseUrl}${liveBaseUrl.includes('?') ? '&' : '?'}_r=${cameraKey}`
+    : null;
 
 
   const formatDate = (timestamp) => {
@@ -390,8 +399,8 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         <span className="text-gray-900 font-medium">{silo.name}</span>
       </div>
 
-      {/* Header con nombre e íconos de acción */}
-      <div className="flex items-center justify-between">
+      {/* Header con nombre, acciones y refresco */}
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">{silo.name}</h1>
           <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
@@ -416,6 +425,18 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            title="Actualizar datos"
+            onClick={() => {
+              // forzar recarga inmediata del historial y de la cámara
+              reloadRecentHistory();
+              setCameraKey((k) => k + 1);
+            }}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
           {deleteConfirm ? (
             <>
               <span className="text-sm text-red-600 font-medium mr-1">¿Eliminar este silo?</span>
@@ -656,10 +677,10 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                     <Camera className="h-3 w-3" /> Cámara
                   </p>
                   <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center group">
-                    {!cameraError ? (
+                    {!cameraError && liveImageUrl ? (
                       <img
                         key={cameraKey}
-                        src={getSiloCameraUrl(silo.id)}
+                        src={liveImageUrl}
                         alt={`Cámara ${silo.name}`}
                         className="absolute inset-0 w-full h-full object-cover"
                         style={{ filter: 'brightness(1.6) contrast(1.1)' }}
@@ -667,7 +688,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                         onLoad={() => setCameraError(false)}
                       />
                     ) : null}
-                    {cameraError && (
+                    {(cameraError || !liveImageUrl) && (
                       <>
                         <div className="absolute inset-0 bg-gradient-to-b from-gray-600 to-gray-900" />
                         <div className="relative z-10 text-center px-2">
@@ -677,7 +698,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                         </div>
                       </>
                     )}
-                    {!cameraError && (
+                    {!cameraError && liveImageUrl && (
                       <>
                         <div className="absolute top-2 right-2 z-10 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -689,7 +710,7 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                             <Folder className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => setLightbox({ src: getSiloCameraUrl(silo.id), alt: `Cámara ${silo.name}` })}
+                            onClick={() => setLightbox({ src: liveImageUrl, alt: `Cámara ${silo.name}` })}
                             className="bg-black/50 hover:bg-black/80 text-white rounded-md p-1.5 transition-colors"
                             title="Ver en pantalla completa"
                           >

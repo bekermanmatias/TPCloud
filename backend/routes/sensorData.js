@@ -36,7 +36,6 @@ const upload = multer({
   storage: multerS3({
     s3,
     bucket: bucketName,
-    acl: 'public-read',
     contentType: multerS3.AUTO_CONTENT_TYPE,
     key: (req, file, cb) => {
       const kit = String(req.body?.kit_code || 'unknown').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
