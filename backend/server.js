@@ -52,13 +52,12 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Servir archivos estáticos del frontend (build de React en ./dist)
-const distPath = path.join(__dirname, 'dist');
-app.use(express.static(distPath));
+// Servir archivos estáticos del frontend (build de React en ../frontend/dist)
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-// Ruta comodín: cualquier otra ruta devuelve index.html para React Router
+// Ruta comodín para React Router: devolver siempre el index.html del frontend
 app.get('*', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 // Manejo de errores
