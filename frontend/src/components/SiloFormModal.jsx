@@ -152,7 +152,6 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
                 <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
                   <Cpu className="h-4 w-4 text-gray-400" />
                   Vincular dispositivo IoT
-                  <span className="text-xs text-gray-400 font-normal ml-1">(opcional)</span>
                 </label>
                 <p className="text-xs text-gray-500 mb-2">
                   Ingresá el código del kit del dispositivo físico. Los datos de sensores que envíe con ese código se asociarán a este silo.

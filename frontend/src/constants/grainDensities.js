@@ -68,6 +68,22 @@ export function getDensityAdjusted(grainType, humidity) {
 }
 
 /**
+ * Ángulos de reposo típicos por tipo de grano (grados).
+ * Se usan para simular la forma del cono de grano en el mapa de calor.
+ */
+export const GRAIN_ANGLES = {
+  'Trigo':               27,
+  'Soja':                30,
+  'Maíz':                32,
+  'Sorgo':               28,
+  'Cebada':              25,
+  'Arroz (con cáscara)': 35,
+  'Avena':               26,
+  'Girasol':             28,
+};
+export const DEFAULT_ANGLE = 30;
+
+/**
  * Calcula la capacidad máxima teórica del silo en toneladas
  * usando volumen cilíndrico × densidad (ajustada por humedad si se provee).
  * @param {number}      diameter  - diámetro del silo en metros

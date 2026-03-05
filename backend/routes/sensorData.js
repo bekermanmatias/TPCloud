@@ -7,6 +7,7 @@ import { saveSensorData, getLatestData } from '../services/sensorDataService.js'
 import { getSiloIdByKitCode, getSiloInfoByKitCode } from '../services/silosService.js';
 import { saveCameraFrame } from '../services/cameraService.js';
 import { getDensityAdjusted, GRAIN_HUM_REF, DEFAULT_HUM_REF } from '../constants/grainDensities.js';
+import { evaluateAlerts } from '../services/alertsService.js';
 
 const router = express.Router();
 
@@ -85,6 +86,8 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
     const kit_code = String(req.body?.kit_code || '').trim();
     const temperatura = Number(req.body?.temperatura);
     const humedad = Number(req.body?.humedad);
+    // presion es opcional: el ESP32 la envía si tiene BME280/BMP280, null si no
+    const presion = req.body?.presion != null ? Number(req.body.presion) : null;
     const gas = Number.parseInt(req.body?.gas, 10);
     // El ESP32 envía distancia_vacia (cm desde el sensor hasta la superficie del grano)
     const distancia_vacia = Number(req.body?.distancia_vacia);
@@ -146,9 +149,10 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
     const fotoSiloPath = `/uploads/silo-photos/${req.file.filename}`;
     const fotoSiloUrl = `${req.protocol}://${req.get('host')}${fotoSiloPath}`;
 
-    const humidityRisk = humedad > 75;
-    const tempRisk = temperatura > 35;
-    const gasRisk = gas > 120;
+    // Alinear flags de riesgo con los umbrales de alertas (importados del servicio)
+    const humidityRisk = humedad > 70;   // igual que HUMIDITY_CRITICAL threshold
+    const tempRisk = temperatura > 28;   // igual que TEMP_ATTENTION threshold
+    const gasRisk = gas > 100;           // igual que GAS_MILD threshold
 
     const payload = {
       siloId,
@@ -156,12 +160,18 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
       temperature: { average: temperatura, min: temperatura, max: temperatura, hasRisk: tempRisk },
       humidity: humedad,
       humidityRisk,
+      presion: Number.isFinite(presion) ? presion : null,
       grainLevel: { percentage, tons, distance: distancia_vacia, capacity: capacidadCalc, density: densidad, humRef },
       gases: { co2: gas, hasRisk: gasRisk },
       imagePath: fotoSiloPath
     };
 
     await saveSensorData(payload);
+
+    // Evaluar alertas en segundo plano (no bloquea la respuesta al ESP32)
+    evaluateAlerts(siloId, payload, distancia_vacia, alturaTotalCm).catch((e) =>
+      console.warn('⚠️  evaluateAlerts:', e.message)
+    );
 
     // Cargar la imagen al cameraStore en memoria para que GET /api/camera/:siloId
     // devuelva inmediatamente la última foto sin necesidad de un endpoint separado
@@ -178,6 +188,7 @@ router.post('/iot', upload.single('fotoSilo'), async (req, res) => {
       timestamp: payload.timestamp,
       temperatura,
       humedad,
+      presion,
       gas,
       distancia_vacia,
       nivelRealCm,

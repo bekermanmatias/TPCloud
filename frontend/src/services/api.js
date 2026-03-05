@@ -30,9 +30,9 @@ api.interceptors.response.use(
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem('salgest_user');
       delete api.defaults.headers.common.Authorization;
-      if (window.location.pathname !== '/' && !window.location.pathname.includes('login')) {
-        window.location.reload();
-      }
+      // Notifica al AuthContext para que actualice el estado de React
+      // sin hacer window.location.reload() (que borraba el token antes de recargar)
+      window.dispatchEvent(new Event('auth:session-expired'));
     }
     return Promise.reject(err);
   }
@@ -54,6 +54,13 @@ export const getSiloHistory = async (id, options = {}) => {
   if (options.hours) params.append('hours', options.hours);
   
   const response = await api.get(`/silos/${id}/history?${params.toString()}`);
+  return response.data;
+};
+
+/** Carga TODO el historial disponible (hasta 10 000 registros, 1 año).
+ *  Solo llamar cuando el usuario lo solicita explícitamente. */
+export const getSiloFullHistory = async (id) => {
+  const response = await api.get(`/silos/${id}/history?all=true`);
   return response.data;
 };
 
@@ -94,6 +101,59 @@ export const deleteSilo = async (id) => {
 export const vincularSilo = async (siloId, kitCode) => {
   const response = await api.put(`/silos/${siloId}/vincular`, { kit_code: kitCode || null });
   return response.data;
+};
+
+// ── Alertas ───────────────────────────────────────────────────────────────────
+
+/** Devuelve todas las alertas activas del usuario (incluye check de dispositivos offline) */
+export const getActiveAlerts = async () => {
+  const response = await api.get('/alerts');
+  return response.data;
+};
+
+/** Devuelve alertas activas de un silo específico */
+export const getAlertsBySilo = async (siloId) => {
+  const response = await api.get(`/alerts/${siloId}`);
+  return response.data;
+};
+
+/** Marca una alerta como reconocida */
+export const acknowledgeAlert = async (alertId) => {
+  const response = await api.patch(`/alerts/${alertId}/acknowledge`);
+  return response.data;
+};
+
+/** Devuelve el historial de alertas (activas + resueltas) de un silo */
+export const getAlertHistory = async (siloId, { days = 30, limit = 100 } = {}) => {
+  const response = await api.get(`/alerts/${siloId}/history`, { params: { days, limit } });
+  return response.data;
+};
+
+/** Devuelve los umbrales configurados para un silo */
+export const getSiloAlertConfig = async (siloId) => {
+  const response = await api.get(`/alerts/${siloId}/config`);
+  return response.data;
+};
+
+/** Actualiza un umbral específico para un silo */
+export const updateSiloAlertThreshold = async (siloId, key, value) => {
+  const response = await api.put(`/alerts/${siloId}/config/${key}`, { value });
+  return response.data;
+};
+
+/** Devuelve el perfil del usuario autenticado */
+export const getProfile = async () => {
+  const response = await api.get('/auth/profile');
+  return response.data;
+};
+
+/**
+ * Actualiza el perfil del usuario.
+ * @param {{ name?, email?, password?, currentPassword? }} data
+ */
+export const updateProfile = async (data) => {
+  const response = await api.put('/auth/profile', data);
+  return response.data; // { user: { id, email, name } }
 };
 
 export const login = async (email, password) => {

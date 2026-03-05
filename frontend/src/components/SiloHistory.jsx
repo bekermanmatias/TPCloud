@@ -5,6 +5,27 @@ import { Button } from './ui/button';
 import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
 import { Card, CardContent, CardHeader } from './ui/card';
 
+/**
+ * Índice de Calidad del Aire normalizado (0-100) basado en ppm del MQ-135.
+ * Umbrales alineados con las alertas del backend:
+ *   0–100 ppm  → zona verde  (Normal)
+ *   100–150    → zona naranja (Atención)
+ *   150–300+   → zona roja   (Peligroso)
+ */
+function calcIQA(ppm) {
+  if (ppm == null || ppm < 0) return 0;
+  if (ppm <= 100) return Math.round((ppm / 100) * 50);           // 0–50
+  if (ppm <= 150) return Math.round(50 + ((ppm - 100) / 50) * 25); // 50–75
+  if (ppm <= 300) return Math.round(75 + ((ppm - 150) / 150) * 25); // 75–100
+  return 100;
+}
+
+function iqaLabel(iqa) {
+  if (iqa < 34) return { label: 'Normal',    color: 'text-green-600',  bg: 'bg-green-100'  };
+  if (iqa < 67) return { label: 'Atención',  color: 'text-amber-600',  bg: 'bg-amber-100'  };
+  return         { label: 'Peligroso', color: 'text-red-600',    bg: 'bg-red-100'    };
+}
+
 /** Convierte un ISO string a formato YYYY-MM-DDTHH:mm en hora local (requerido por datetime-local) */
 function toInputDatetime(isoStr) {
   if (!isoStr) return '';
@@ -26,6 +47,7 @@ function SiloHistory({ histories }) {
       .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
       .map((item, index) => {
         const date = new Date(item.timestamp);
+        const co2 = item.gases?.co2 ?? 0;
         return {
           timestamp: item.timestamp,
           date: date.toLocaleDateString('es-AR', { month: 'short', day: '2-digit' }),
@@ -37,7 +59,8 @@ function SiloHistory({ histories }) {
           volume: item.grainLevel?.percentage || 0,
           temp: item.temperature?.average || 0,
           humidity: item.humidity || 0,
-          battery: 100 - (index * 0.1),
+          co2,
+          iqa: calcIQA(co2),
         };
       });
   }, [histories]);
@@ -60,6 +83,14 @@ function SiloHistory({ histories }) {
       return t >= from && t <= to;
     });
   }, [chartData, fromDatetime, toDatetime]);
+
+  // IQA actual: último dato del rango filtrado
+  const lastIQA = filteredData.length > 0
+    ? iqaLabel(filteredData[filteredData.length - 1].iqa)
+    : null;
+  const lastCO2 = filteredData.length > 0
+    ? filteredData[filteredData.length - 1].co2
+    : null;
 
   const isFullRange =
     chartData.length === 0 ||
@@ -237,7 +268,7 @@ function SiloHistory({ histories }) {
               </div>
             </div>
 
-            {/* GRÁFICO INFERIOR (Ambiente) */}
+            {/* GRÁFICO INFERIOR (Ambiente: Temp + Humedad) */}
             <div className="h-[150px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={filteredData} syncId="siloSync" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -254,7 +285,7 @@ function SiloHistory({ histories }) {
                     formatter={(value, name) => {
                       if (name === 'temp') return [`${value.toFixed(1)}°C`, 'Temperatura'];
                       if (name === 'humidity') return [`${value.toFixed(1)}%`, 'Humedad'];
-                      return [`${value.toFixed(1)}%`, 'Batería'];
+                      return [value, name];
                     }}
                     labelFormatter={tooltipLabel}
                   />
@@ -262,6 +293,80 @@ function SiloHistory({ histories }) {
                   <Line type="monotone" dataKey="humidity" stroke="#a3e635" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
+            </div>
+
+            {/* Separador + encabezado CO₂ */}
+            <div className="flex items-center justify-between mt-6 mb-1 px-1">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full bg-violet-400" />
+                <span className="text-xs font-medium text-slate-500">CO₂ / Gases (ppm)</span>
+              </div>
+              {lastIQA && lastCO2 != null && (
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-slate-400">IQA actual:</span>
+                  <span className={`font-semibold px-2 py-0.5 rounded-full ${lastIQA.bg} ${lastIQA.color}`}>
+                    {lastCO2} ppm — {lastIQA.label}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* GRÁFICO CO₂ con líneas de umbral */}
+            <div className="h-[150px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={filteredData} syncId="siloSync" margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorCO2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#a78bfa" stopOpacity={0.35} />
+                      <stop offset="95%" stopColor="#a78bfa" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="date"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 12 }}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 11 }}
+                    width={36}
+                  />
+                  <Tooltip
+                    contentStyle={{ backgroundColor: '#1e293b', color: '#fff', borderRadius: '8px', border: 'none' }}
+                    formatter={(value, name) => {
+                      if (name === 'co2') return [`${value} ppm`, 'CO₂'];
+                      if (name === 'iqa')  return [`${value}/100`, 'IQA'];
+                      return [value, name];
+                    }}
+                    labelFormatter={tooltipLabel}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="co2"
+                    stroke="#8b5cf6"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorCO2)"
+                    dot={false}
+                    activeDot={{ r: 5, strokeWidth: 0, fill: '#fff', stroke: '#8b5cf6' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Leyenda CO₂ */}
+            <div className="flex justify-center gap-6 mt-2 text-xs font-medium text-slate-500">
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-6 border-t-2 border-dashed border-amber-400" />
+                Umbral atención (100 ppm)
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="inline-block w-6 border-t-2 border-dashed border-red-400" />
+                Umbral crítico (150 ppm)
+              </div>
             </div>
           </>
         )}

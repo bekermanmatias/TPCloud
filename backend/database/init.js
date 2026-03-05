@@ -83,20 +83,52 @@ async function createTables() {
     );
   `;
 
+  const createAlertsTable = `
+    CREATE TABLE IF NOT EXISTS alerts (
+      id SERIAL PRIMARY KEY,
+      silo_id VARCHAR(50) REFERENCES silos(id) ON DELETE CASCADE,
+      alert_type VARCHAR(100) NOT NULL,
+      severity VARCHAR(20) NOT NULL CHECK (severity IN ('critical','warning')),
+      message TEXT NOT NULL,
+      data JSONB DEFAULT '{}',
+      triggered_at TIMESTAMPTZ DEFAULT NOW(),
+      resolved_at TIMESTAMPTZ,
+      acknowledged_at TIMESTAMPTZ,
+      acknowledged_by INTEGER REFERENCES users(id)
+    );
+  `;
+
+  const createAlertConfigsTable = `
+    CREATE TABLE IF NOT EXISTS alert_configs (
+      id SERIAL PRIMARY KEY,
+      silo_id VARCHAR(50) REFERENCES silos(id) ON DELETE CASCADE,
+      alert_type VARCHAR(100) NOT NULL,
+      threshold_value DECIMAL(10, 4) NOT NULL,
+      enabled BOOLEAN DEFAULT TRUE,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE(silo_id, alert_type)
+    );
+  `;
+
   const createIndexes = `
     CREATE INDEX IF NOT EXISTS idx_silos_user_id ON silos(user_id);
     CREATE INDEX IF NOT EXISTS idx_sensor_data_silo_id ON sensor_data(silo_id);
     CREATE INDEX IF NOT EXISTS idx_sensor_data_timestamp ON sensor_data(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_alerts_silo_id ON alerts(silo_id);
+    CREATE INDEX IF NOT EXISTS idx_alerts_resolved ON alerts(resolved_at) WHERE resolved_at IS NULL;
   `;
 
   try {
     await pool.query(createUsersTable);
     await pool.query(createSilosTable);
     await pool.query(createSensorDataTable);
+    await pool.query(createAlertsTable);
+    await pool.query(createAlertConfigsTable);
     await pool.query(createIndexes);
     await migrateSilosAddUserId();
     await migrateSilosAddKitCode();
     await migrateSensorDataAddImagePath();
+    await migrateSensorDataAddPresion();
     console.log('✅ Tablas de base de datos creadas/verificadas');
   } catch (error) {
     console.error('❌ Error al crear tablas:', error.message);
@@ -156,6 +188,19 @@ async function migrateSensorDataAddImagePath() {
   if (hasColumn.rows.length > 0) return;
 
   await pool.query('ALTER TABLE sensor_data ADD COLUMN image_path VARCHAR(500)');
+}
+
+/**
+ * Migración: añadir presion (hPa, nullable) a sensor_data si no existe
+ */
+async function migrateSensorDataAddPresion() {
+  const hasColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'sensor_data' AND column_name = 'presion'
+  `);
+  if (hasColumn.rows.length > 0) return;
+
+  await pool.query('ALTER TABLE sensor_data ADD COLUMN presion DECIMAL(7, 2)');
 }
 
 /**

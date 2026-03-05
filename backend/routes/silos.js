@@ -42,10 +42,13 @@ router.get('/:id/history', async (req, res) => {
   try {
     const silo = await getSiloById(req.params.id, req.userId);
     if (!silo) return res.status(404).json({ error: 'Silo no encontrado' });
-    const { limit = 100, hours = 24 } = req.query;
+    const { limit = 100, hours = 24, all } = req.query;
+    // all=true → sin límite de registros (historial completo); cap en 10 000 para seguridad
+    const parsedLimit = all === 'true' ? 10000 : parseInt(limit);
+    const parsedHours = all === 'true' ? 8760 : parseInt(hours); // 8760 h = 1 año
     const history = await getSiloHistory(req.params.id, {
-      limit: parseInt(limit),
-      hours: parseInt(hours)
+      limit: parsedLimit,
+      hours: parsedHours
     });
     res.json(history);
   } catch (error) {

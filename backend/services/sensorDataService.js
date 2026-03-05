@@ -19,6 +19,7 @@ function dbRowToLatestData(row) {
     },
     humidity: Number(row.humidity),
     humidityRisk: Boolean(row.humidity_risk),
+    presion: row.presion != null ? Number(row.presion) : null,
     grainLevel: {
       percentage: Number(row.grain_level_percentage),
       tons: Number(row.grain_level_tons),
@@ -42,6 +43,7 @@ function dbRowToHistoryRow(row) {
     },
     humidity: Number(row.humidity),
     humidityRisk: Boolean(row.humidity_risk),
+    presion: row.presion != null ? Number(row.presion) : null,
     grainLevel: {
       percentage: Number(row.grain_level_percentage),
       tons: Number(row.grain_level_tons),
@@ -70,10 +72,11 @@ export async function saveSensorData(data) {
         silo_id, timestamp,
         temperature_avg, temperature_min, temperature_max, temperature_risk,
         humidity, humidity_risk,
+        presion,
         grain_level_percentage, grain_level_tons, grain_level_distance,
         co2, co2_risk,
         image_path
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
       [
         data.siloId,
         timestamp,
@@ -83,6 +86,7 @@ export async function saveSensorData(data) {
         Boolean(temp.hasRisk),
         data.humidity ?? null,
         Boolean(data.humidityRisk),
+        data.presion ?? null,
         grain.percentage ?? null,
         grain.tons ?? null,
         grain.distance ?? null,
@@ -104,6 +108,7 @@ export async function saveSensorData(data) {
     temperature: data.temperature,
     humidity: data.humidity,
     humidityRisk: data.humidityRisk || false,
+    presion: data.presion ?? null,
     grainLevel: data.grainLevel,
     gases: data.gases,
     imagePath: data.imagePath ?? null,
@@ -130,7 +135,8 @@ export async function getLatestData(siloId) {
   if (pool) {
     const result = await pool.query(
       `SELECT silo_id, timestamp, temperature_avg, temperature_min, temperature_max, temperature_risk,
-              humidity, humidity_risk, grain_level_percentage, grain_level_tons, grain_level_distance,
+              humidity, humidity_risk, presion,
+              grain_level_percentage, grain_level_tons, grain_level_distance,
               co2, co2_risk, image_path, created_at
        FROM sensor_data WHERE silo_id = $1 ORDER BY timestamp DESC LIMIT 1`,
       [siloId]
@@ -151,7 +157,8 @@ export async function getSiloHistory(siloId, options = {}) {
   if (pool) {
     const result = await pool.query(
       `SELECT timestamp, temperature_avg, temperature_min, temperature_max, temperature_risk,
-              humidity, humidity_risk, grain_level_percentage, grain_level_tons, grain_level_distance,
+              humidity, humidity_risk, presion,
+              grain_level_percentage, grain_level_tons, grain_level_distance,
               co2, co2_risk, image_path
        FROM sensor_data
        WHERE silo_id = $1 AND timestamp >= NOW() - ($2 * interval '1 hour')
@@ -171,6 +178,7 @@ export async function getSiloHistory(siloId, options = {}) {
       temperature: d.temperature,
       humidity: d.humidity,
       humidityRisk: d.humidityRisk,
+      presion: d.presion ?? null,
       grainLevel: d.grainLevel,
       gases: d.gases,
       imagePath: d.imagePath ?? null

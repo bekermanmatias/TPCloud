@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
@@ -6,68 +6,142 @@ import {
   ChevronLeft, 
   Calendar, 
   Thermometer, 
-  Battery, 
   Signal, 
   Camera,
   Activity,
-  Download,
   Edit,
-  Settings,
-  Info,
-  RefreshCw
+  Trash2,
+  RefreshCw,
+  BarChart2,
+  Bell,
+  ChevronDown,
+  ImageIcon,
+  Loader2,
+  History,
+  Droplets,
 } from 'lucide-react';
-import { getSiloHistory, getSiloCameraUrl, getSiloHistoryImageUrl } from '../services/api';
+import { getSiloHistory, getSiloFullHistory, getSiloCameraUrl, getSiloHistoryImageUrl, updateSilo, deleteSilo } from '../services/api';
 import { SiloVisual } from './SiloVisual';
 import SiloHistory from './SiloHistory';
 import MapaCalorSilo from './MapaCalorSilo';
-import { getDensity, getDensityAdjusted, GRAIN_HUM_REF, DEFAULT_HUM_REF } from '../constants/grainDensities';
+import { getDensity, getDensityAdjusted, GRAIN_HUM_REF, DEFAULT_HUM_REF, GRAIN_ANGLES, DEFAULT_ANGLE } from '../constants/grainDensities';
+import AlertsPanel from './AlertsPanel';
+import AlertsHistorial from './AlertsHistorial';
+import SiloFormModal from './SiloFormModal';
 
 const CAMERA_REFRESH_MS = 5000; // Actualizar imagen cada 5 s (igual que el ESP32 puede enviar)
 
 function SiloDetailView({ silo, onBack, onSiloUpdated }) {
+  // Datos recientes (siempre cargados, 100 registros) — usados para stats y vista actual
   const [histories, setHistories] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [cameraKey, setCameraKey] = useState(0);
   const [cameraError, setCameraError] = useState(false);
+
+  // ── Historial visual (lazy) — solo carga al abrir el tab ────────────────
+  const [histVisual, setHistVisual]         = useState([]);
+  const [histVisualIdx, setHistVisualIdx]   = useState(0);
+  const [histVisualLoading, setHistVisualLoading] = useState(false);
+  const [histVisualFull, setHistVisualFull] = useState(false);   // ya cargó todo
+  const [histVisualCamErr, setHistVisualCamErr]   = useState(false);
+
+  // Pestaña activa del historial: null = colapsado
+  const [histTab, setHistTab] = useState(null);
+  // Conjunto de pestañas que ya fueron abiertas (para no desmontar al cambiar de pestaña)
+  const [mountedTabs, setMountedTabs] = useState(new Set());
+
+  const loadHistVisual = useCallback(async (full = false) => {
+    if (histVisualLoading) return;
+    setHistVisualLoading(true);
+    try {
+      const data = full
+        ? await getSiloFullHistory(silo.id)
+        : await getSiloHistory(silo.id, { limit: 200, hours: 720 });
+      setHistVisual(data);
+      setHistVisualIdx(0);
+      if (full) setHistVisualFull(true);
+    } catch (err) {
+      console.error('Error cargando historial visual:', err);
+    } finally {
+      setHistVisualLoading(false);
+    }
+  }, [silo.id, histVisualLoading]);
+
+  const openHistTab = useCallback((tab) => {
+    setHistTab((prev) => (prev === tab ? null : tab)); // toggle
+    setMountedTabs((prev) => {
+      if (prev.has(tab)) return prev;
+      // Al abrir 'visual' por primera vez, disparar la carga de datos
+      if (tab === 'visual') {
+        // se dispara en un micro-tick para no bloquear el render
+        setTimeout(() => loadHistVisual(false), 0);
+      }
+      return new Set([...prev, tab]);
+    });
+  }, [loadHistVisual]);
+
+  // ── Editar silo ────────────────────────────────────────────────────────────
+  const [editOpen, setEditOpen]     = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError]   = useState('');
+
+  const handleEditSave = async (formData) => {
+    setEditSaving(true);
+    setEditError('');
+    try {
+      await updateSilo(silo.id, formData);
+      setEditOpen(false);
+      if (onSiloUpdated) onSiloUpdated();
+    } catch (err) {
+      setEditError(err?.response?.data?.error || 'Error al guardar los cambios.');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  // ── Eliminar silo ──────────────────────────────────────────────────────────
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleteLoading(true);
+    try {
+      await deleteSilo(silo.id);
+      if (onSiloUpdated) onSiloUpdated(); // refresca la lista en el padre
+      onBack();                           // vuelve al dashboard
+    } catch (err) {
+      console.error('Error al eliminar silo:', err);
+      setDeleteLoading(false);
+      setDeleteConfirm(false);
+    }
+  };
 
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const history = await getSiloHistory(silo.id, { limit: 100, hours: 720 }); // 30 días
+        // 100 registros / 30 días → suficiente para estadísticas y vista actual
+        const history = await getSiloHistory(silo.id, { limit: 100, hours: 720 });
         setHistories(history);
-        setCurrentIndex(history.length - 1); // Empezar con el más reciente
       } catch (error) {
         console.error('Error al cargar historial:', error);
       }
     };
-
     loadHistory();
     const interval = setInterval(loadHistory, 5000);
     return () => clearInterval(interval);
   }, [silo.id]);
 
-  // Refrescar la imagen en vivo solo cuando estamos viendo el dato más reciente
+  // La cámara en vivo siempre se refresca (ya no hay slider en la vista principal)
   useEffect(() => {
     setCameraError(false);
-    const isLatest = currentIndex >= histories.length - 1;
-    if (!isLatest) return;
     const interval = setInterval(() => {
       setCameraError(false);
       setCameraKey((k) => k + 1);
     }, CAMERA_REFRESH_MS);
     return () => clearInterval(interval);
-  }, [silo.id, currentIndex, histories.length]);
+  }, [silo.id]);
 
-  const currentData = histories[currentIndex] || silo.latestData;
-
-  // URL de la imagen a mostrar:
-  // – Si el dato histórico seleccionado tiene foto guardada → usarla
-  // – Si es el dato más reciente o no hay foto histórica → imagen en vivo del endpoint de cámara
-  const isViewingLatest = currentIndex >= histories.length - 1;
-  const historicImageUrl = getSiloHistoryImageUrl(currentData?.imagePath);
-  const cameraImageUrl = isViewingLatest || !historicImageUrl
-    ? getSiloCameraUrl(silo.id)
-    : historicImageUrl;
+  // Siempre usa el dato más reciente (índice 0 en orden DESC)
+  const currentData = histories[0] || silo.latestData;
 
   // Dimensiones del silo en cm para el mapa de calor
   const alturaSiloCm = (silo.height ?? 10) * 100;
@@ -105,13 +179,26 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
     });
   };
 
-  const handleSliderChange = (value) => {
-    setCurrentIndex(value[0]);
-    setCameraError(false);
-  };
-
   const stockPercentage = currentData?.grainLevel?.percentage || 0;
   const weight = currentData?.grainLevel?.tons || 0;
+
+  // ── Estadísticas de temperatura calculadas sobre TODO el historial ─────────
+  // El ESP32 envía una lectura puntual, así que min/max/avg del
+  // dato individual siempre son iguales. Los calculamos desde histories[].
+  const tempHistValues = histories
+    .map(h => h.temperature?.average)
+    .filter(v => typeof v === 'number' && isFinite(v));
+
+  const tempHistAvg = tempHistValues.length > 0
+    ? tempHistValues.reduce((a, b) => a + b, 0) / tempHistValues.length
+    : (currentData?.temperature?.average ?? 0);
+  const tempHistMax = tempHistValues.length > 0
+    ? Math.max(...tempHistValues)
+    : (currentData?.temperature?.average ?? 0);
+  const tempHistMin = tempHistValues.length > 0
+    ? Math.min(...tempHistValues)
+    : (currentData?.temperature?.average ?? 0);
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Densidad ajustada según humedad real del sensor
   const humedadActual  = currentData?.humidity ?? null;
@@ -125,7 +212,74 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const capacidadReal = parseFloat((volTotalM3 * densidadGrano).toFixed(2));
   const freeSpace     = Math.max(0, capacidadReal - weight);
 
+  // ── Ángulo de reposo según tipo de grano ─────────────────────────────────
+  const anguloReposo = GRAIN_ANGLES[silo.grainType] ?? DEFAULT_ANGLE;
+
+  // ── Lecturas por día (últimas 24 h) ──────────────────────────────────────
+  const now24 = Date.now();
+  const lectsPorDia = histories.filter(
+    h => (now24 - new Date(h.timestamp).getTime()) <= 24 * 60 * 60 * 1000
+  ).length;
+
+  // ── Consumo / ingreso estimado por día ────────────────────────────────────
+  // Compara el peso actual con el de la lectura más cercana a hace ~24 h.
+  // histories está ordenado DESC (más reciente primero).
+  const newestWeight = histories[0]?.grainLevel?.tons ?? weight;
+  const reading24h   = histories.find(h => {
+    const diffH = (now24 - new Date(h.timestamp).getTime()) / 3_600_000;
+    return diffH >= 20; // lectura de hace ≥ 20 h (proxy de "ayer")
+  });
+  const consumoTDia  = reading24h != null
+    ? parseFloat(((reading24h.grainLevel?.tons ?? 0) - newestWeight).toFixed(2))
+    : null; // positivo → consumo; negativo → carga
+
+  // ── Estado general derivado de los datos del sensor ───────────────────────
+  const tempActual = currentData?.temperature?.average ?? 0;
+  const humActual  = currentData?.humidity ?? 0;
+  const gasActual  = currentData?.gases?.co2 ?? 0;
+
+  let estadoLabel = 'Normal';
+  let estadoColor = 'text-green-600';
+
+  if (
+    (tempActual > 30 && humActual > 65 && gasActual > 100) ||
+    gasActual > 150
+  ) {
+    estadoLabel = 'Crítico';
+    estadoColor = 'text-red-600';
+  } else if (tempActual > 28 || humActual > 70 || gasActual > 100) {
+    estadoLabel = 'Atención';
+    estadoColor = 'text-amber-600';
+  }
+
+  // ── Presión atmosférica y punto de rocío ─────────────────────────────────
+  // La presión atmosférica es un dato "actual": siempre priorizamos el
+  // registro más reciente (histories[0] en orden DESC), luego el slot del
+  // slider actual, luego latestData del prop como último recurso.
+  const presionActual =
+    histories[0]?.presion ??
+    currentData?.presion ??
+    silo.latestData?.presion ??
+    null;
+  const dewPoint = (() => {
+    if (humActual <= 0 || tempActual == null) return null;
+    const a = 17.27, b = 237.7;
+    const gamma = (a * tempActual) / (b + tempActual) + Math.log(Math.max(humActual, 1) / 100);
+    return parseFloat(((b * gamma) / (a - gamma)).toFixed(1));
+  })();
+  // Margen al punto de rocío: < 2°C → riesgo de condensación
+  const condensRisk = dewPoint != null && (tempActual - dewPoint) < 2;
+
+  // ── Estado de conectividad del dispositivo ────────────────────────────────
+  const lastTs        = histories[0]?.timestamp ?? currentData?.timestamp;
+  const minsSinceData = lastTs
+    ? (now24 - new Date(lastTs).getTime()) / 60_000
+    : Infinity;
+  const deviceOnline  = minsSinceData < 30;
+  // ──────────────────────────────────────────────────────────────────────────
+
   return (
+    <>
     <div className="space-y-4">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -164,19 +318,48 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
             </span>
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon">
-            <Edit className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon">
-            <Camera className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon">
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button variant="outline" size="icon">
-            <Info className="h-4 w-4" />
-          </Button>
+        <div className="flex items-center gap-2">
+          {deleteConfirm ? (
+            <>
+              <span className="text-sm text-red-600 font-medium mr-1">¿Eliminar este silo?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Eliminando...' : 'Sí, eliminar'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDeleteConfirm(false)}
+                disabled={deleteLoading}
+              >
+                Cancelar
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Editar silo"
+                onClick={() => { setEditError(''); setEditOpen(true); }}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                title="Eliminar silo"
+                className="text-red-500 hover:text-red-700 hover:border-red-400"
+                onClick={() => setDeleteConfirm(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -185,12 +368,6 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium">
-                  {formatDateShort(currentData?.timestamp)}
-                </span>
-              </div>
               <div className="flex items-center gap-2">
                 <Thermometer className="h-4 w-4 text-orange-500" />
                 <span className="text-sm font-medium">
@@ -206,15 +383,19 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
             </div>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                <Battery className="h-4 w-4 text-green-500" />
-                <span className="text-sm font-medium">100%</span>
+                <div className={`h-2 w-2 rounded-full ${deviceOnline ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className={`text-sm font-medium ${deviceOnline ? 'text-green-600' : 'text-red-500'}`}>
+                  {deviceOnline ? 'En línea' : 'Sin señal'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Signal className="h-4 w-4 text-blue-500" />
                 <span className="text-sm font-medium">
                   {formatDate(currentData?.timestamp)}
                 </span>
-                <span className="text-xs text-gray-500">(18 lect/día)</span>
+                {lectsPorDia > 0 && (
+                  <span className="text-xs text-gray-500">({lectsPorDia} lect/día)</span>
+                )}
               </div>
             </div>
           </div>
@@ -222,9 +403,9 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
       </Card>
 
       {/* Layout principal: 2 columnas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
         {/* COLUMNA IZQUIERDA - Estado del Silo */}
-        <div className="space-y-6">
+        <div className="flex flex-col gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Estado del Silo</CardTitle>
@@ -256,10 +437,6 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                       <span className="text-gray-600">Cap. disponible:</span>
                       <span className="font-medium">{freeSpace.toFixed(2)} t</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Consumo actual:</span>
-                      <span className="font-medium">0.3 t/día</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -267,46 +444,60 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
           </Card>
 
           {/* Cards de información adicional */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Temperatura</CardTitle>
+          <div className="grid grid-cols-2 gap-4 flex-1">
+            <Card className="h-full">
+              <CardHeader className="pb-1">
+                <CardTitle className="text-base flex items-center justify-between">
+                  Temperatura
+                  {tempHistValues.length > 1 && (
+                    <span className="text-xs font-normal text-gray-400">
+                      últimas {tempHistValues.length} lect.
+                    </span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
+                    <span className="text-gray-600">Actual:</span>
+                    <span className="font-medium">
+                      {(currentData?.temperature?.average ?? 0).toFixed(1)}°C
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-600">Promedio:</span>
                     <span className="font-medium">
-                      {currentData?.temperature?.average?.toFixed(1) || '0'}°C
+                      {tempHistAvg.toFixed(1)}°C
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Máximo:</span>
-                    <span className="font-medium">
-                      {currentData?.temperature?.max?.toFixed(1) || '0'}°C
+                    <span className="font-medium text-red-500">
+                      {tempHistMax.toFixed(1)}°C
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Mínimo:</span>
-                    <span className="font-medium">
-                      {currentData?.temperature?.min?.toFixed(1) || '0'}°C
+                    <span className="font-medium text-blue-500">
+                      {tempHistMin.toFixed(1)}°C
                     </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="h-full">
+              <CardHeader className="pb-1">
                 <CardTitle className="text-base">Condición actual</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Humedad:</span>
+                    <span className="text-gray-600 flex items-center gap-1">
+                      Humedad:
+                    </span>
                     <span className={`font-medium ${humedadActual != null && humedadActual > humRef ? 'text-amber-600' : ''}`}>
                       {currentData?.humidity?.toFixed(0) || '0'}%
-                      <span className="text-gray-400 font-normal ml-1">(ref. {humRef}%)</span>
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -322,8 +513,28 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-gray-600">Presión:</span>
+                    <span className="font-medium">
+                      {presionActual != null ? `${presionActual.toFixed(1)} hPa` : '—'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span
+                      className="text-gray-600"
+                      title="Temperatura a la que el vapor de agua condensa sobre superficies"
+                    >
+                      Pto. de rocío:
+                    </span>
+                    <span className={`font-medium ${condensRisk ? 'text-blue-600' : ''}`}
+                      title={condensRisk ? 'Riesgo de condensación: temperatura interna muy cerca del punto de rocío' : ''}
+                    >
+                      {dewPoint != null ? `${dewPoint}°C` : '—'}
+                      {condensRisk && <span className="text-xs ml-1">⚠️ cond.</span>}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-600">Estado:</span>
-                    <span className="font-medium text-green-600">Normal</span>
+                    <span className={`font-medium ${estadoColor}`}>{estadoLabel}</span>
                   </div>
                 </div>
               </CardContent>
@@ -331,23 +542,27 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA - Camera y Contour Map */}
-        <div className="space-y-6">
-          {/* Camera History View */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Historial de cámara</CardTitle>
+        {/* COLUMNA DERECHA - Cámara en vivo + Mapa de calor actual */}
+        <div className="flex flex-col">
+          <Card className="flex-1">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center justify-between">
+                <span>Vista actual</span>
+              </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {/* Dos visualizaciones lado a lado */}
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Imagen de cámara ESP32 o placeholder si no hay conexión */}
+            <CardContent className="pt-0">
+              {/* Cámara y mapa lado a lado — mismo tamaño que antes */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Cámara en vivo */}
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                    <Camera className="h-3 w-3" /> Cámara
+                  </p>
                   <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
                     {!cameraError ? (
                       <img
-                        key={`${cameraKey}-${currentIndex}`}
-                        src={cameraImageUrl}
+                        key={cameraKey}
+                        src={getSiloCameraUrl(silo.id)}
                         alt={`Cámara ${silo.name}`}
                         className="absolute inset-0 w-full h-full object-cover"
                         style={{ filter: 'brightness(1.6) contrast(1.1)' }}
@@ -357,71 +572,217 @@ function SiloDetailView({ silo, onBack, onSiloUpdated }) {
                     ) : null}
                     {cameraError && (
                       <>
-                        <div className="absolute inset-0 bg-gradient-radial from-gray-600 to-gray-900" />
+                        <div className="absolute inset-0 bg-gradient-to-b from-gray-600 to-gray-900" />
                         <div className="relative z-10 text-center px-2">
-                          <Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-400">Sin imagen disponible</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {isViewingLatest ? 'Esperando foto del ESP32...' : 'Esta medición no tiene foto'}
-                          </p>
+                          <Camera className="h-10 w-10 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-400">Sin imagen</p>
+                          <p className="text-xs text-gray-500 mt-1">Esperando ESP32…</p>
                         </div>
                       </>
                     )}
-                    {!isViewingLatest && historicImageUrl && (
-                      <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
-                        Foto histórica
-                      </div>
-                    )}
                   </div>
+                </div>
 
-                  {/* Mapa de calor topográfico basado en física (Ángulo de Reposo) */}
+                {/* Mapa de calor actual */}
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-500 font-medium">Distribución del grano</p>
                   <MapaCalorSilo
                     distanciaVacia={distanciaVaciaCalc}
                     alturaSilo={alturaSiloCm}
                     radioSilo={radioSiloCm}
-                    anguloReposo={30}
+                    anguloReposo={anguloReposo}
                   />
                 </div>
+              </div>
 
-                {/* Información de la lectura histórica */}
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-medium">
-                    {weight.toFixed(2)} t ({stockPercentage.toFixed(2)}%)
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-500">
-                    <RefreshCw className="h-4 w-4" />
-                    <span>{formatDate(currentData?.timestamp)}</span>
-                  </div>
-                </div>
-
-                {/* Timeline Slider dentro de Camera history view */}
-                <div className="space-y-2 pt-2 border-t">
-                  <Slider
-                    value={[currentIndex]}
-                    onValueChange={handleSliderChange}
-                    max={histories.length - 1}
-                    step={1}
-                    disabled={histories.length === 0}
-                    className="w-full"
-                  />
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>
-                      {histories.length > 0 && formatDateShort(histories[0]?.timestamp)}
-                    </span>
-                    <span>
-                      {histories.length > 0 && formatDateShort(histories[histories.length - 1]?.timestamp)}
-                    </span>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
+                <span>{weight.toFixed(2)} t · {stockPercentage.toFixed(1)}%</span>
+                <span>{formatDate(currentData?.timestamp)}</span>
               </div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Historial de datos */}
-      <SiloHistory histories={histories} />
+      {/* Panel de alertas activas */}
+      <AlertsPanel siloId={silo.id} />
+
+      {/* ── Sección de historial (lazy) ─────────────────────────────────── */}
+      <div className="space-y-0">
+        {/* Botones para abrir cada pestaña */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { id: 'visual',   icon: <ImageIcon className="h-4 w-4" />,  label: 'Historial visual'     },
+            { id: 'datos',    icon: <BarChart2  className="h-4 w-4" />,  label: 'Historial de datos'   },
+            { id: 'eventos',  icon: <Bell       className="h-4 w-4" />,  label: 'Historial de eventos' },
+          ].map(({ id, icon, label }) => (
+            <button
+              key={id}
+              onClick={() => openHistTab(id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg border text-sm font-medium transition-colors
+                ${histTab === id
+                  ? 'bg-white border-b-white text-orange-700 border-orange-200 shadow-sm'
+                  : 'bg-gray-50 border-gray-200 text-gray-500 hover:bg-gray-100 hover:text-gray-700'}`}
+            >
+              {icon}
+              {label}
+              <ChevronDown className={`h-3 w-3 transition-transform ${histTab === id ? 'rotate-180' : ''}`} />
+            </button>
+          ))}
+        </div>
+
+        {/* Contenido de la pestaña — solo se monta la primera vez que se abre */}
+        {histTab && (
+          <div className="border border-orange-200 rounded-b-lg rounded-tr-lg bg-white p-4 shadow-sm">
+
+            {/* ── Historial visual (cámara + mapa de calor por fecha) ── */}
+            {mountedTabs.has('visual') && (
+              <div className={histTab === 'visual' ? '' : 'hidden'}>
+                {histVisualLoading && histVisual.length === 0 ? (
+                  <div className="flex items-center justify-center py-12 text-gray-400 gap-2">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span>Cargando historial visual…</span>
+                  </div>
+                ) : histVisual.length === 0 ? (
+                  <p className="text-center text-gray-400 py-8">Sin datos históricos disponibles.</p>
+                ) : (() => {
+                  const hvData  = histVisual[histVisualIdx];
+                  const hvRaw   = hvData?.grainLevel?.distance;
+                  const hvPct   = hvData?.grainLevel?.percentage ?? 0;
+                  const hvDist  = (hvRaw != null && hvRaw > 0) ? hvRaw : alturaSiloCm * (1 - hvPct / 100);
+                  const hvImgUrl = getSiloHistoryImageUrl(hvData?.imagePath);
+                  return (
+                    <div className="space-y-4">
+                      {/* Header: fecha + botón historial completo */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                          <History className="h-4 w-4" />
+                          <span className="font-medium">{formatDate(hvData?.timestamp)}</span>
+                          <span className="text-gray-400">
+                            ({histVisualIdx + 1} / {histVisual.length})
+                          </span>
+                        </div>
+                        {!histVisualFull && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => loadHistVisual(true)}
+                            disabled={histVisualLoading}
+                            className="text-xs"
+                          >
+                            {histVisualLoading
+                              ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Cargando…</>
+                              : <><History className="h-3 w-3 mr-1" />Cargar historial completo</>
+                            }
+                          </Button>
+                        )}
+                        {histVisualFull && (
+                          <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                            <History className="h-3 w-3" />
+                            Historial completo cargado ({histVisual.length} registros)
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Slider de tiempo */}
+                      <div className="space-y-1">
+                        <Slider
+                          value={[histVisualIdx]}
+                          onValueChange={([v]) => { setHistVisualIdx(v); setHistVisualCamErr(false); }}
+                          max={histVisual.length - 1}
+                          step={1}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-400">
+                          <span>{histVisual.length > 0 && formatDateShort(histVisual[0]?.timestamp)}</span>
+                          <span>{histVisual.length > 0 && formatDateShort(histVisual[histVisual.length - 1]?.timestamp)}</span>
+                        </div>
+                      </div>
+
+                      {/* Cámara histórica + Mapa de calor lado a lado — tamaño compacto */}
+                      <div className="flex gap-3 justify-center">
+                        {/* Foto histórica */}
+                        <div className="w-40 shrink-0">
+                          <p className="text-xs text-gray-500 mb-1 font-medium">Foto</p>
+                          <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
+                            {hvImgUrl && !histVisualCamErr ? (
+                              <img
+                                key={hvImgUrl}
+                                src={hvImgUrl}
+                                alt="Foto histórica"
+                                className="absolute inset-0 w-full h-full object-cover"
+                                style={{ filter: 'brightness(1.6) contrast(1.1)' }}
+                                onError={() => setHistVisualCamErr(true)}
+                                onLoad={() => setHistVisualCamErr(false)}
+                              />
+                            ) : (
+                              <>
+                                <div className="absolute inset-0 bg-gradient-to-b from-gray-600 to-gray-900" />
+                                <div className="relative z-10 text-center px-2">
+                                  <Camera className="h-6 w-6 text-gray-400 mx-auto mb-1" />
+                                  <p className="text-xs text-gray-400">Sin foto</p>
+                                </div>
+                              </>
+                            )}
+                            <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                              Histórica
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Mapa de calor histórico */}
+                        <div className="w-40 shrink-0">
+                          <p className="text-xs text-gray-500 mb-1 font-medium">Distribución</p>
+                          <MapaCalorSilo
+                            distanciaVacia={hvDist}
+                            alturaSilo={alturaSiloCm}
+                            radioSilo={radioSiloCm}
+                            anguloReposo={anguloReposo}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Stats del registro seleccionado */}
+                      <div className="grid grid-cols-4 gap-2 text-center text-xs border-t pt-3">
+                        <div><p className="text-gray-400">Toneladas</p><p className="font-semibold">{(hvData?.grainLevel?.tons ?? 0).toFixed(1)} t</p></div>
+                        <div><p className="text-gray-400">Nivel</p><p className="font-semibold">{hvPct.toFixed(1)}%</p></div>
+                        <div><p className="text-gray-400">Temp.</p><p className="font-semibold">{(hvData?.temperature?.average ?? 0).toFixed(1)}°C</p></div>
+                        <div><p className="text-gray-400">Humedad</p><p className="font-semibold">{(hvData?.humidity ?? 0).toFixed(0)}%</p></div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* ── Historial de datos de sensores (gráficos) ── */}
+            {mountedTabs.has('datos') && (
+              <div className={histTab === 'datos' ? '' : 'hidden'}>
+                <SiloHistory histories={histories} />
+              </div>
+            )}
+
+            {/* ── Historial de eventos y alertas ── */}
+            {mountedTabs.has('eventos') && (
+              <div className={histTab === 'eventos' ? '' : 'hidden'}>
+                <AlertsHistorial siloId={silo.id} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
+
+    {/* Modal de edición */}
+    <SiloFormModal
+      open={editOpen}
+      silo={silo}
+      onClose={() => setEditOpen(false)}
+      onSave={handleEditSave}
+      saving={editSaving}
+      error={editError}
+    />
+    </>
   );
 }
 
