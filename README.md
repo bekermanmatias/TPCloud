@@ -220,31 +220,19 @@ Para servir el frontend desde el backend en producción:
 
 #### 6.1 Nivel y stock físico
 
-- **Entrada**: `distancia_vacia` enviada por el ESP32 (`cm` desde el sensor hasta el grano).  
-- **Altura total**: configurada por silo (`height` en metros).  
+- **Entrada**: `distancia_vacia` enviada por el ESP32 (cm desde el sensor hasta el grano).
+- **Altura total**: configurada por silo (`height` en metros).
 - **Nivel real**:
-
-\[
-\text{nivelRealCm} = \max(0, \text{alturaTotalCm} - \text{distancia\_vacia})
-\]
-
+  - nivelRealCm = max(0, alturaTotalCm - distancia_vacia)
 - **Porcentaje de llenado**:
-
-\[
-\%\text{stock} = \min\left(100, \frac{\text{nivelRealCm}}{\text{alturaTotalCm}} \times 100\right)
-\]
-
+  - % stock = min(100, (nivelRealCm / alturaTotalCm) × 100)
 - **Toneladas**:
+  - tons = V_cilindro × densidad_ajustada
 
-\[
-\text{tons} = V_{\text{cilindro}} \times \rho_{\text{ajustada}}
-\]
+Donde:
 
-con:
-
-- \(V_{\text{cilindro}} = \pi \times r^2 \times h_{\text{grano}}\)  
-- \(\rho_{\text{ajustada}} =\) resultado de `getDensityAdjusted(grainType, humedad)`  
-  (corrige la densidad base según la humedad real).
+- V_cilindro = π × r² × h_grano (volumen del cilindro en m³).
+- densidad_ajustada = resultado de `getDensityAdjusted(grainType, humedad)` (corrige la densidad base según la humedad real).
 
 #### 6.2 Mapa de calor topográfico
 
