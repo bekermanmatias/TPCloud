@@ -57,6 +57,7 @@ async function createTables() {
       height DECIMAL(5, 2),
       diameter DECIMAL(5, 2),
       grain_type VARCHAR(50),
+      kit_code VARCHAR(100) UNIQUE,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
@@ -77,6 +78,7 @@ async function createTables() {
       grain_level_distance DECIMAL(5, 2),
       co2 DECIMAL(6, 0),
       co2_risk BOOLEAN DEFAULT FALSE,
+      image_path VARCHAR(500),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `;
@@ -93,6 +95,8 @@ async function createTables() {
     await pool.query(createSensorDataTable);
     await pool.query(createIndexes);
     await migrateSilosAddUserId();
+    await migrateSilosAddKitCode();
+    await migrateSensorDataAddImagePath();
     console.log('✅ Tablas de base de datos creadas/verificadas');
   } catch (error) {
     console.error('❌ Error al crear tablas:', error.message);
@@ -125,6 +129,33 @@ async function migrateSilosAddUserId() {
     await pool.query('ALTER TABLE silos ALTER COLUMN user_id SET NOT NULL');
     await pool.query('ALTER TABLE silos ADD CONSTRAINT fk_silos_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE');
   }
+}
+
+/**
+ * Migración: añadir kit_code (único, nullable) a silos si no existe
+ */
+async function migrateSilosAddKitCode() {
+  const hasColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'silos' AND column_name = 'kit_code'
+  `);
+  if (hasColumn.rows.length > 0) return;
+
+  await pool.query('ALTER TABLE silos ADD COLUMN kit_code VARCHAR(100)');
+  await pool.query('ALTER TABLE silos ADD CONSTRAINT silos_kit_code_unique UNIQUE (kit_code)');
+}
+
+/**
+ * Migración: añadir image_path (nullable) a sensor_data si no existe
+ */
+async function migrateSensorDataAddImagePath() {
+  const hasColumn = await pool.query(`
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'sensor_data' AND column_name = 'image_path'
+  `);
+  if (hasColumn.rows.length > 0) return;
+
+  await pool.query('ALTER TABLE sensor_data ADD COLUMN image_path VARCHAR(500)');
 }
 
 /**

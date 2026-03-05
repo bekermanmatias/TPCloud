@@ -6,7 +6,8 @@ import {
   getSiloHistory,
   createSilo,
   updateSilo,
-  deleteSilo
+  deleteSilo,
+  updateSiloKitCode
 } from '../services/silosService.js';
 
 const router = express.Router();
@@ -50,6 +51,18 @@ router.get('/:id/history', async (req, res) => {
   } catch (error) {
     console.error('Error al obtener historial:', error);
     res.status(500).json({ error: 'Error al obtener historial', message: error.message });
+  }
+});
+
+// PUT /api/silos/:id/vincular - Vincular dispositivo por kit_code (debe ir antes de PUT /:id)
+router.put('/:id/vincular', async (req, res) => {
+  try {
+    const silo = await updateSiloKitCode(req.params.id, req.userId, req.body.kit_code);
+    if (!silo) return res.status(404).json({ error: 'Silo no encontrado' });
+    res.json(silo);
+  } catch (error) {
+    const status = error.message?.includes('ya está vinculado') ? 409 : 400;
+    res.status(status).json({ error: error.message || 'Error al vincular dispositivo' });
   }
 });
 

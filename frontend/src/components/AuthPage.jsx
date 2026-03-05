@@ -67,7 +67,7 @@ export default function AuthPage() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Correo electrónico</label>
               <Input
                 type="email"
                 value={email}

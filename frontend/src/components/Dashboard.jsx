@@ -75,8 +75,8 @@ function Dashboard({ siloId }) {
             {latestData.temperature.average.toFixed(1)}°C
           </div>
           <div className="metric-details">
-            Min: {latestData.temperature.min.toFixed(1)}°C | 
-            Max: {latestData.temperature.max.toFixed(1)}°C
+            Mín: {latestData.temperature.min.toFixed(1)}°C | 
+            Máx: {latestData.temperature.max.toFixed(1)}°C
           </div>
           <TemperatureChart history={history} />
         </div>

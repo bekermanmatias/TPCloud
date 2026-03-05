@@ -12,6 +12,7 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSilo, setEditingSilo] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
@@ -69,22 +70,26 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
 
   const handleOpenCreate = () => {
     setEditingSilo(null);
+    setSaveError('');
     setModalOpen(true);
   };
 
   const handleOpenEdit = (e, silo) => {
     e.stopPropagation();
     setEditingSilo(silo);
+    setSaveError('');
     setModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setModalOpen(false);
     setEditingSilo(null);
+    setSaveError('');
   };
 
   const handleSave = async (data) => {
     setSaving(true);
+    setSaveError('');
     try {
       if (editingSilo) {
         await updateSilo(editingSilo.id, data);
@@ -96,6 +101,7 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
       handleCloseModal();
     } catch (err) {
       console.error(err);
+      setSaveError(err.response?.data?.error || err.message || 'Error al guardar el silo');
     } finally {
       setSaving(false);
     }
@@ -247,6 +253,7 @@ function SilosTable({ silos, loading, onSelectSilo, onSiloCreated, onSiloUpdated
         onClose={handleCloseModal}
         onSave={handleSave}
         saving={saving}
+        error={saveError}
       />
     </div>
   );

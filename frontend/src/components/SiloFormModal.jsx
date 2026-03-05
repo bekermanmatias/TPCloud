@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { X } from 'lucide-react';
+import { X, Cpu } from 'lucide-react';
+import { GRAIN_TYPES, getDensity, calcCapacidad } from '../constants/grainDensities';
 
-const GRAIN_TYPES = ['Soja', 'Maíz', 'Trigo', 'Girasol', 'Sorgo', 'Otro'];
-
-export default function SiloFormModal({ open, silo = null, onClose, onSave, saving }) {
+export default function SiloFormModal({ open, silo = null, onClose, onSave, saving, error = '' }) {
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [capacity, setCapacity] = useState(100);
   const [height, setHeight] = useState(10);
   const [diameter, setDiameter] = useState(6);
   const [grainType, setGrainType] = useState('Soja');
+  const [kitCode, setKitCode] = useState('');
 
   const isEdit = !!silo;
 
@@ -24,6 +24,7 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
       setHeight(silo.height ?? 10);
       setDiameter(silo.diameter ?? 6);
       setGrainType(silo.grainType || 'Soja');
+      setKitCode(silo.kitCode || '');
     } else {
       setName('');
       setLocation('');
@@ -31,6 +32,7 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
       setHeight(10);
       setDiameter(6);
       setGrainType('Soja');
+      setKitCode('');
     }
   }, [silo, open]);
 
@@ -42,7 +44,8 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
       capacity: Number(capacity),
       height: Number(height),
       diameter: Number(diameter),
-      grainType: grainType.trim()
+      grainType: grainType.trim(),
+      kitCode: kitCode.trim() || undefined
     });
   };
 
@@ -59,6 +62,11 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                {error}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
               <Input
@@ -77,7 +85,14 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de grano</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">Tipo de grano</label>
+                {grainType !== 'Otro' && (
+                  <span className="text-xs text-gray-400">
+                    Densidad: <strong>{Math.round(getDensity(grainType) * 1000)} kg/m³</strong>
+                  </span>
+                )}
+              </div>
               <select
                 value={grainType}
                 onChange={(e) => setGrainType(e.target.value)}
@@ -90,7 +105,19 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Capacidad (t)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-700">Capacidad (t)</label>
+                  {grainType !== 'Otro' && Number(height) > 0 && Number(diameter) > 0 && (
+                    <button
+                      type="button"
+                      title="Usar capacidad calculada por volumen × densidad"
+                      className="text-xs text-blue-600 hover:underline leading-none"
+                      onClick={() => setCapacity(calcCapacidad(Number(diameter), Number(height), grainType))}
+                    >
+                      Auto
+                    </button>
+                  )}
+                </div>
                 <Input
                   type="number"
                   min="1"
@@ -106,7 +133,7 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
                   min="0.1"
                   step="0.1"
                   value={height}
-                  onChange={(e) => setHeight(e.target.value)}
+                  onChange={(e) => { setHeight(e.target.value); }}
                 />
               </div>
               <div>
@@ -116,10 +143,31 @@ export default function SiloFormModal({ open, silo = null, onClose, onSave, savi
                   min="0.1"
                   step="0.1"
                   value={diameter}
-                  onChange={(e) => setDiameter(e.target.value)}
+                  onChange={(e) => { setDiameter(e.target.value); }}
                 />
               </div>
             </div>
+            {isEdit && (
+              <div className="border-t pt-4">
+                <label className="flex items-center gap-1 text-sm font-medium text-gray-700 mb-1">
+                  <Cpu className="h-4 w-4 text-gray-400" />
+                  Vincular dispositivo IoT
+                  <span className="text-xs text-gray-400 font-normal ml-1">(opcional)</span>
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Ingresá el código del kit del dispositivo físico. Los datos de sensores que envíe con ese código se asociarán a este silo.
+                </p>
+                <Input
+                  value={kitCode}
+                  onChange={(e) => setKitCode(e.target.value)}
+                  placeholder="Ej: SILO-A1B2"
+                  autoComplete="off"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Dejá vacío para desvincular el dispositivo.
+                </p>
+              </div>
+            )}
             <div className="flex gap-2 justify-end pt-2">
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar

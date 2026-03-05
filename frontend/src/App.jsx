@@ -60,7 +60,11 @@ function App() {
       <div className="app">
         <Sidebar currentView={currentView} onViewChange={setCurrentView} />
         <main className="main-content-with-sidebar">
-          <SiloDetailView silo={selectedSilo} onBack={handleBackToDashboard} />
+          <SiloDetailView
+            silo={selectedSilo}
+            onBack={handleBackToDashboard}
+            onSiloUpdated={setSelectedSilo}
+          />
         </main>
       </div>
     );

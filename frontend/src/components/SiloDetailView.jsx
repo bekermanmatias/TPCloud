@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import Plot from 'react-plotly.js';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Slider } from './ui/slider';
@@ -17,17 +16,19 @@ import {
   Info,
   RefreshCw
 } from 'lucide-react';
-import { getSiloHistory, getSiloCameraUrl } from '../services/api';
+import { getSiloHistory, getSiloCameraUrl, getSiloHistoryImageUrl } from '../services/api';
 import { SiloVisual } from './SiloVisual';
 import SiloHistory from './SiloHistory';
+import MapaCalorSilo from './MapaCalorSilo';
+import { getDensity, getDensityAdjusted, GRAIN_HUM_REF, DEFAULT_HUM_REF } from '../constants/grainDensities';
 
 const CAMERA_REFRESH_MS = 5000; // Actualizar imagen cada 5 s (igual que el ESP32 puede enviar)
 
-function SiloDetailView({ silo, onBack }) {
+function SiloDetailView({ silo, onBack, onSiloUpdated }) {
   const [histories, setHistories] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [cameraKey, setCameraKey] = useState(0); // Para forzar recarga de la imagen
-  const [cameraError, setCameraError] = useState(false); // Sin imagen o error de carga
+  const [cameraKey, setCameraKey] = useState(0);
+  const [cameraError, setCameraError] = useState(false);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -45,45 +46,42 @@ function SiloDetailView({ silo, onBack }) {
     return () => clearInterval(interval);
   }, [silo.id]);
 
-  // Actualizar imagen de cámara cada CAMERA_REFRESH_MS y reintentar si antes falló
+  // Refrescar la imagen en vivo solo cuando estamos viendo el dato más reciente
   useEffect(() => {
     setCameraError(false);
+    const isLatest = currentIndex >= histories.length - 1;
+    if (!isLatest) return;
     const interval = setInterval(() => {
       setCameraError(false);
       setCameraKey((k) => k + 1);
     }, CAMERA_REFRESH_MS);
     return () => clearInterval(interval);
-  }, [silo.id]);
+  }, [silo.id, currentIndex, histories.length]);
 
   const currentData = histories[currentIndex] || silo.latestData;
 
-  // Generar datos de contorno simulados (superficie del grano)
-  const generateContourData = (percentage) => {
-    const size = 20;
-    const z = [];
-    const centerX = size / 2;
-    const centerY = size / 2;
-    const maxHeight = percentage / 100 * 10; // altura máxima basada en porcentaje
+  // URL de la imagen a mostrar:
+  // – Si el dato histórico seleccionado tiene foto guardada → usarla
+  // – Si es el dato más reciente o no hay foto histórica → imagen en vivo del endpoint de cámara
+  const isViewingLatest = currentIndex >= histories.length - 1;
+  const historicImageUrl = getSiloHistoryImageUrl(currentData?.imagePath);
+  const cameraImageUrl = isViewingLatest || !historicImageUrl
+    ? getSiloCameraUrl(silo.id)
+    : historicImageUrl;
 
-    for (let i = 0; i < size; i++) {
-      const row = [];
-      for (let j = 0; j < size; j++) {
-        const dx = i - centerX;
-        const dy = j - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
-        
-        // Crear forma de cono con algo de ruido para simular irregularidad
-        const noise = Math.random() * 0.3 - 0.15;
-        const height = Math.max(0, maxHeight * (1 - distance / maxDistance) + noise);
-        row.push(height);
-      }
-      z.push(row);
-    }
-    return z;
-  };
+  // Dimensiones del silo en cm para el mapa de calor
+  const alturaSiloCm = (silo.height ?? 10) * 100;
+  const radioSiloCm  = ((silo.diameter ?? 6) / 2) * 100;
 
-  const contourData = currentData ? generateContourData(currentData.grainLevel?.percentage || 0) : [];
+  // distanciaVacia para el mapa de calor:
+  // Si el campo viene como 0 o null en BD (registros sin dato de distancia),
+  // lo derivamos del porcentaje almacenado para que el mapa sea coherente.
+  const rawDistance   = currentData?.grainLevel?.distance;
+  const pctActual     = currentData?.grainLevel?.percentage ?? 0;
+  const distanciaVaciaCalc = (rawDistance != null && rawDistance > 0)
+    ? rawDistance
+    : alturaSiloCm * (1 - pctActual / 100);
+
 
   const formatDate = (timestamp) => {
     if (!timestamp) return 'N/A';
@@ -109,43 +107,23 @@ function SiloDetailView({ silo, onBack }) {
 
   const handleSliderChange = (value) => {
     setCurrentIndex(value[0]);
+    setCameraError(false);
   };
 
   const stockPercentage = currentData?.grainLevel?.percentage || 0;
   const weight = currentData?.grainLevel?.tons || 0;
-  const capacity = silo.capacity || 100;
-  const freeSpace = Math.max(0, capacity - weight);
 
-  // Calcular días restantes y consumo
-  const calculateStockDays = () => {
-    if (histories.length < 2 || !currentData) return { days: 7, consumption: 0.83 };
-    
-    const sortedHistory = [...histories].sort((a, b) => 
-      new Date(a.timestamp) - new Date(b.timestamp)
-    );
-    
-    const first = sortedHistory[0];
-    const last = sortedHistory[sortedHistory.length - 1];
-    const timeDiff = new Date(last.timestamp) - new Date(first.timestamp);
-    const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
-    
-    if (daysDiff <= 0) return { days: 7, consumption: 0.83 };
-    
-    const consumption = first.grainLevel.tons - last.grainLevel.tons;
-    const dailyConsumption = Math.abs(consumption / daysDiff);
-    
-    if (dailyConsumption <= 0) return { days: 7, consumption: 0.83 };
-    
-    const remaining = currentData.grainLevel.tons;
-    const daysRemaining = remaining / dailyConsumption;
-    
-    return {
-      days: Math.round(daysRemaining),
-      consumption: dailyConsumption.toFixed(2)
-    };
-  };
+  // Densidad ajustada según humedad real del sensor
+  const humedadActual  = currentData?.humidity ?? null;
+  const densidadBase   = getDensity(silo.grainType);                           // t/m³ estándar
+  const densidadGrano  = getDensityAdjusted(silo.grainType, humedadActual);    // t/m³ ajustada
+  const humRef         = GRAIN_HUM_REF[silo.grainType] ?? DEFAULT_HUM_REF;
+  const densidadAjustada = humedadActual != null && Math.abs(densidadGrano - densidadBase) > 0.0001;
 
-  const stockInfo = calculateStockDays();
+  // Capacidad real: volumen total del silo × densidad ajustada
+  const volTotalM3    = Math.PI * Math.pow((silo.diameter ?? 6) / 2, 2) * (silo.height ?? 10);
+  const capacidadReal = parseFloat((volTotalM3 * densidadGrano).toFixed(2));
+  const freeSpace     = Math.max(0, capacidadReal - weight);
 
   return (
     <div className="space-y-4">
@@ -165,8 +143,25 @@ function SiloDetailView({ silo, onBack }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-gray-900">{silo.name}</h1>
-          <p className="text-gray-600 mt-1">
-            <span className="font-medium">Product:</span> {silo.grainType || 'N/A'} (640 kg/m³)
+          <p className="text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
+            <span className="font-medium">Producto:</span>{' '}
+            {silo.grainType || 'N/A'}
+            <span
+              className={`text-sm ${densidadAjustada ? 'text-amber-600 font-medium' : 'text-gray-400'}`}
+              title={
+                densidadAjustada
+                  ? `Densidad base: ${Math.round(densidadBase * 1000)} kg/m³ | Humedad referencia: ${humRef}% | Humedad actual: ${humedadActual?.toFixed(0)}%`
+                  : `Densidad estándar a ${humRef}% HR`
+              }
+            >
+              ({Math.round(densidadGrano * 1000)} kg/m³
+              {densidadAjustada && (
+                <span className="text-xs ml-1">
+                  {densidadGrano > densidadBase ? '▲' : '▼'} ajustado por humedad
+                </span>
+              )}
+              )
+            </span>
           </p>
         </div>
         <div className="flex gap-2">
@@ -219,7 +214,7 @@ function SiloDetailView({ silo, onBack }) {
                 <span className="text-sm font-medium">
                   {formatDate(currentData?.timestamp)}
                 </span>
-                <span className="text-xs text-gray-500">(18r/day)</span>
+                <span className="text-xs text-gray-500">(18 lect/día)</span>
               </div>
             </div>
           </div>
@@ -253,31 +248,17 @@ function SiloDetailView({ silo, onBack }) {
                   </div>
                   
                   <div className="space-y-2 text-sm">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 flex items-center gap-1">
-                        <Info className="h-3 w-3" />
-                        Estimated remaining:
-                      </span>
-                      <span className="font-medium">{stockInfo.days} days</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600 flex items-center gap-1">
-                        <Info className="h-3 w-3" />
-                        Typical consumption:
-                      </span>
-                      <span className="font-medium">{stockInfo.consumption} t/day</span>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cap. máxima:</span>
+                      <span className="font-medium">{capacidadReal.toFixed(2)} t</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Max Capacity:</span>
-                      <span className="font-medium">{capacity} t</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Available Capacity:</span>
+                      <span className="text-gray-600">Cap. disponible:</span>
                       <span className="font-medium">{freeSpace.toFixed(2)} t</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Current Consumption:</span>
-                      <span className="font-medium">0.3 t/day</span>
+                      <span className="text-gray-600">Consumo actual:</span>
+                      <span className="font-medium">0.3 t/día</span>
                     </div>
                   </div>
                 </div>
@@ -289,24 +270,24 @@ function SiloDetailView({ silo, onBack }) {
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Temperature</CardTitle>
+                <CardTitle className="text-base">Temperatura</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Average:</span>
+                    <span className="text-gray-600">Promedio:</span>
                     <span className="font-medium">
                       {currentData?.temperature?.average?.toFixed(1) || '0'}°C
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Maximum:</span>
+                    <span className="text-gray-600">Máximo:</span>
                     <span className="font-medium">
                       {currentData?.temperature?.max?.toFixed(1) || '0'}°C
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Minimum:</span>
+                    <span className="text-gray-600">Mínimo:</span>
                     <span className="font-medium">
                       {currentData?.temperature?.min?.toFixed(1) || '0'}°C
                     </span>
@@ -317,14 +298,21 @@ function SiloDetailView({ silo, onBack }) {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Current Condition</CardTitle>
+                <CardTitle className="text-base">Condición actual</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Humidity:</span>
-                    <span className="font-medium">
+                    <span className="text-gray-600">Humedad:</span>
+                    <span className={`font-medium ${humedadActual != null && humedadActual > humRef ? 'text-amber-600' : ''}`}>
                       {currentData?.humidity?.toFixed(0) || '0'}%
+                      <span className="text-gray-400 font-normal ml-1">(ref. {humRef}%)</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Densidad efectiva:</span>
+                    <span className={`font-medium text-xs ${densidadAjustada ? 'text-amber-600' : 'text-gray-600'}`}>
+                      {Math.round(densidadGrano * 1000)} kg/m³
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -334,7 +322,7 @@ function SiloDetailView({ silo, onBack }) {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Status:</span>
+                    <span className="text-gray-600">Estado:</span>
                     <span className="font-medium text-green-600">Normal</span>
                   </div>
                 </div>
@@ -348,7 +336,7 @@ function SiloDetailView({ silo, onBack }) {
           {/* Camera History View */}
           <Card>
             <CardHeader>
-              <CardTitle>Camera history view</CardTitle>
+              <CardTitle>Historial de cámara</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -358,10 +346,11 @@ function SiloDetailView({ silo, onBack }) {
                   <div className="relative bg-gradient-to-b from-gray-700 to-gray-900 rounded-lg overflow-hidden aspect-square flex items-center justify-center">
                     {!cameraError ? (
                       <img
-                        key={cameraKey}
-                        src={getSiloCameraUrl(silo.id)}
+                        key={`${cameraKey}-${currentIndex}`}
+                        src={cameraImageUrl}
                         alt={`Cámara ${silo.name}`}
                         className="absolute inset-0 w-full h-full object-cover"
+                        style={{ filter: 'brightness(1.6) contrast(1.1)' }}
                         onError={() => setCameraError(true)}
                         onLoad={() => setCameraError(false)}
                       />
@@ -371,59 +360,27 @@ function SiloDetailView({ silo, onBack }) {
                         <div className="absolute inset-0 bg-gradient-radial from-gray-600 to-gray-900" />
                         <div className="relative z-10 text-center px-2">
                           <Camera className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                          <p className="text-sm text-gray-400">Conecta la cámara del ESP32</p>
-                          <p className="text-xs text-gray-500 mt-1">POST /api/camera/{silo.id}</p>
+                          <p className="text-sm text-gray-400">Sin imagen disponible</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {isViewingLatest ? 'Esperando foto del ESP32...' : 'Esta medición no tiene foto'}
+                          </p>
                         </div>
                       </>
                     )}
-                  </div>
-
-                  {/* Contour Map - Vista 3D de la superficie */}
-                  <div className="h-full">
-                    {contourData.length > 0 && (
-                      <Plot
-                        data={[
-                          {
-                            z: contourData,
-                            type: 'contour',
-                            colorscale: [
-                              [0, '#FF6B6B'],
-                              [0.3, '#FFA500'],
-                              [0.6, '#FFD700'],
-                              [1, '#FFFF00']
-                            ],
-                            contours: {
-                              coloring: 'heatmap',
-                              showlabels: true,
-                              labelfont: {
-                                size: 8,
-                                color: 'white'
-                              },
-                              start: 0.5,
-                              end: 3,
-                              size: 0.5
-                            },
-                            colorbar: {
-                              visible: false
-                            }
-                          }
-                        ]}
-                        layout={{
-                          autosize: true,
-                          margin: { l: 0, r: 0, t: 0, b: 0 },
-                          xaxis: { visible: false },
-                          yaxis: { visible: false },
-                          paper_bgcolor: 'transparent',
-                          plot_bgcolor: 'transparent'
-                        }}
-                        config={{
-                          displayModeBar: false,
-                          responsive: true
-                        }}
-                        style={{ width: '100%', height: '100%' }}
-                      />
+                    {!isViewingLatest && historicImageUrl && (
+                      <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                        Foto histórica
+                      </div>
                     )}
                   </div>
+
+                  {/* Mapa de calor topográfico basado en física (Ángulo de Reposo) */}
+                  <MapaCalorSilo
+                    distanciaVacia={distanciaVaciaCalc}
+                    alturaSilo={alturaSiloCm}
+                    radioSilo={radioSiloCm}
+                    anguloReposo={30}
+                  />
                 </div>
 
                 {/* Información de la lectura histórica */}

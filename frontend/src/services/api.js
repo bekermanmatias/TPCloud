@@ -66,6 +66,16 @@ export const getSiloCameraUrl = (siloId) => {
   return `${API_ORIGIN}/api/camera/${encodeURIComponent(siloId)}?_t=${t}`;
 };
 
+/**
+ * URL de una imagen histórica guardada en el servidor (imagePath de sensor_data).
+ * Si no hay imagePath devuelve null.
+ * @param {string|null} imagePath  Ej: "/uploads/silo-photos/SILO-A1B2_1234567890.jpg"
+ */
+export const getSiloHistoryImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  return `${API_ORIGIN}${imagePath}`;
+};
+
 export const createSilo = async (data) => {
   const response = await api.post('/silos', data);
   return response.data;
@@ -78,6 +88,12 @@ export const updateSilo = async (id, data) => {
 
 export const deleteSilo = async (id) => {
   await api.delete(`/silos/${id}`);
+};
+
+/** Vincula un dispositivo al silo mediante su código de kit */
+export const vincularSilo = async (siloId, kitCode) => {
+  const response = await api.put(`/silos/${siloId}/vincular`, { kit_code: kitCode || null });
+  return response.data;
 };
 
 export const login = async (email, password) => {

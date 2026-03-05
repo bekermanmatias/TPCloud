@@ -26,6 +26,7 @@ function dbRowToLatestData(row) {
       capacity: null
     },
     gases: { co2: Number(row.co2), hasRisk: Boolean(row.co2_risk) },
+    imagePath: row.image_path || null,
     createdAt: row.created_at ? new Date(row.created_at).toISOString() : null
   };
 }
@@ -47,7 +48,8 @@ function dbRowToHistoryRow(row) {
       distance: Number(row.grain_level_distance),
       capacity: null
     },
-    gases: { co2: Number(row.co2), hasRisk: Boolean(row.co2_risk) }
+    gases: { co2: Number(row.co2), hasRisk: Boolean(row.co2_risk) },
+    imagePath: row.image_path || null
   };
 }
 
@@ -69,8 +71,9 @@ export async function saveSensorData(data) {
         temperature_avg, temperature_min, temperature_max, temperature_risk,
         humidity, humidity_risk,
         grain_level_percentage, grain_level_tons, grain_level_distance,
-        co2, co2_risk
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        co2, co2_risk,
+        image_path
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         data.siloId,
         timestamp,
@@ -84,11 +87,12 @@ export async function saveSensorData(data) {
         grain.tons ?? null,
         grain.distance ?? null,
         gases.co2 ?? null,
-        Boolean(gases.hasRisk)
+        Boolean(gases.hasRisk),
+        data.imagePath ?? null
       ]
     );
     console.log(`💾 Datos guardados en BD para ${data.siloId}`);
-    return { siloId: data.siloId, timestamp: timestamp.toISOString() };
+    return { siloId: data.siloId, timestamp: timestamp.toISOString(), imagePath: data.imagePath ?? null };
   }
 
   // Fallback memoria
@@ -102,6 +106,7 @@ export async function saveSensorData(data) {
     humidityRisk: data.humidityRisk || false,
     grainLevel: data.grainLevel,
     gases: data.gases,
+    imagePath: data.imagePath ?? null,
     createdAt: new Date().toISOString()
   };
   sensorDataStore.set(key, sensorData);
@@ -126,7 +131,7 @@ export async function getLatestData(siloId) {
     const result = await pool.query(
       `SELECT silo_id, timestamp, temperature_avg, temperature_min, temperature_max, temperature_risk,
               humidity, humidity_risk, grain_level_percentage, grain_level_tons, grain_level_distance,
-              co2, co2_risk, created_at
+              co2, co2_risk, image_path, created_at
        FROM sensor_data WHERE silo_id = $1 ORDER BY timestamp DESC LIMIT 1`,
       [siloId]
     );
@@ -147,7 +152,7 @@ export async function getSiloHistory(siloId, options = {}) {
     const result = await pool.query(
       `SELECT timestamp, temperature_avg, temperature_min, temperature_max, temperature_risk,
               humidity, humidity_risk, grain_level_percentage, grain_level_tons, grain_level_distance,
-              co2, co2_risk
+              co2, co2_risk, image_path
        FROM sensor_data
        WHERE silo_id = $1 AND timestamp >= NOW() - ($2 * interval '1 hour')
        ORDER BY timestamp DESC LIMIT $3`,
@@ -167,7 +172,8 @@ export async function getSiloHistory(siloId, options = {}) {
       humidity: d.humidity,
       humidityRisk: d.humidityRisk,
       grainLevel: d.grainLevel,
-      gases: d.gases
+      gases: d.gases,
+      imagePath: d.imagePath ?? null
     }));
   return history;
 }

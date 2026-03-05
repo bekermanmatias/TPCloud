@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { sensorDataRouter } from './routes/sensorData.js';
 import { silosRouter } from './routes/silos.js';
 import { cameraRouter } from './routes/camera.js';
@@ -11,10 +13,13 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Logging middleware
 app.use((req, res, next) => {
@@ -27,6 +32,12 @@ app.use('/api/auth', authRouter);
 app.use('/api/sensor-data', sensorDataRouter);
 app.use('/api/silos', silosRouter);
 app.use('/api/camera', cameraRouter);
+
+// Alias para el ESP32: POST /api/datos-silo → handler IoT de sensorDataRouter
+app.use('/api/datos-silo', (req, res, next) => {
+  req.url = '/iot';
+  sensorDataRouter(req, res, next);
+});
 
 // Ruta de salud
 app.get('/health', (req, res) => {
