@@ -6,6 +6,11 @@
 **Versión:** 1.0  
 **Estado:** En producción (Fase 1)
 
+**Video demo**
+```markdown
+https://youtu.be/J5fz-ZG7sRA
+```
+
 ---
 
 ### 1. Visión general del sistema
@@ -121,8 +126,6 @@ Salgest/
     public/
     vite.config.js
     .env
-  docs/
-    CHECKLIST.md
 ```
 
 ---
@@ -517,51 +520,8 @@ curl -X POST http://localhost:3000/api/datos-silo \
 
 En un escenario real, el firmware del ESP32 se encarga de construir este request periódicamente (cada N segundos/minutos).
 
----
 
-### 14. Capturas de pantalla (UI)
 
-Este proyecto está preparado para documentar visualmente el sistema en funcionamiento.
-
-Se recomienda:
-
-- Crear una carpeta `docs/images/` y guardar allí las capturas en formato `.png` o `.jpg`.  
-- Nombrar las imágenes de forma descriptiva, por ejemplo:
-  - `dashboard-overview.png`
-  - `silo-detail-heatmap.png`
-  - `gallery-with-notes.png`
-  - `alerts-panel.png`
-
-Ejemplo de cómo incrustar una captura en este README:
-
-```markdown
-![Panel de control de Salgest](docs/images/dashboard-overview.png)
-```
-
-Cuando tengas las capturas definitivas, solo hace falta añadirlas en la sección correspondiente del README (por ejemplo, debajo de la descripción del Dashboard o del detalle de silo).
-
----
-
-### 15. Video demo (YouTube)
-
-También podés documentar la plataforma con un video demostrativo en YouTube (zafra real, instalación en silo, recorrido por la app, etc.).
-
-Sugerencias:
-
-- Grabar un recorrido corto (3–7 minutos) mostrando:
-  - Inicio de sesión y vista general del **Dashboard**.  
-  - Ingreso al detalle de un silo y lectura de métricas.  
-  - Uso de la **cámara en vivo** y del **historial visual**.  
-  - Visualización y reconocimiento de alertas.  
-  - Guardar una captura en la galería con nota y verla luego en `Galería`.
-
-- Una vez publicado el video, agregar el enlace aquí:
-
-```markdown
-### 🎥 Demo en video
-
-[Ver demo de Salgest en YouTube](https://www.youtube.com/watch?v=TU_LINK_AQUI)
-```
 
 Hasta que el video esté disponible, podés dejar el enlace en forma de TODO o comentario para no olvidarlo.
 
