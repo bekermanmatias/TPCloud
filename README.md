@@ -1,165 +1,499 @@
-# Sistema IoT para Monitoreo de Silos y Gestión de Stock en la Nube
-
 **Autor:** Rau Bekerman Matias - 31787  
 **Materia:** Desarrollo de Software Cloud  
 **Institución:** UTN FRLP
 
-## 📋 Descripción del Proyecto
+## 🌾 Salgest – Plataforma de monitoreo de silos  
+**Versión:** 1.0  
+**Estado:** En producción (Fase 1)
 
-Este proyecto consiste en el desarrollo de un sistema de monitoreo IoT para silos de granos que permite la visualización remota de datos críticos (temperatura, humedad, nivel de grano) a través de una aplicación web en la nube.
+---
 
-## 1. Introducción
+### 1. Visión general del sistema
 
-### Problema
-En la gestión de granos, la falta de monitoreo en tiempo real en silos rurales genera pérdidas económicas por deterioro, fermentación o plagas.
+Salgest es una plataforma integral **AgTech** basada en **IoT**, diseñada para:
 
-### Solución
-Un sistema de monitoreo IoT que utiliza sensores en los silos para enviar datos críticos (temperatura, humedad, nivel de grano) a una plataforma en la nube, permitiendo al usuario visualizarlos de forma remota a través de una aplicación web.
+- Monitorear en tiempo real silos de almacenamiento de granos.  
+- Analizar históricos de temperatura, humedad, nivel y gases.  
+- Prevenir riesgos de fermentación, condensación, robo y fallas estructurales.  
 
-## 2. Objetivo y Beneficios
+El sistema reemplaza inspecciones manuales peligrosas combinando:
 
-### Objetivo
-Visualizar información confiable y en tiempo real sobre el estado de un silo para la toma de decisiones, previniendo pérdidas y optimizar la gestión de stock.
+- **Telemetría de precisión** (sensores físicos en ESP32).  
+- **Inspección visual** con cámara.  
+- **Motor de reglas** en la nube para generar alertas inteligentes.  
 
-### Beneficios
+> Hoy los sensores se simulan / provienen de un **ESP32** que ya envía los datos a la nube. Toda la arquitectura de backend, base de datos, almacenamiento de fotos y UI está lista para producción sobre AWS (**EC2, RDS, S3**).
 
-- **Monitoreo remoto:** Acceso a datos desde cualquier lugar, sin necesidad de estar presencial.
-- **Prevención de pérdidas:** Alertas ante condiciones de riesgo (alta temperatura, humedad, etc).
-- **Mejor gestión:** Datos sobre toneladas y nivel de grano.
-- **Escalabilidad:** Base tecnológica para futuras integraciones, como la automatización industrial.
+---
 
-## 3. Alcance
+### 2. Arquitectura y seguridad
 
-### Incluye
-- Prototipo funcional con sensores y ESP32.
-- Simulación de silos con un modelo en laboratorio.
-- Comunicación de datos vía WiFi y LoRa, con potencial evaluación de comunicación satelital para zonas sin conectividad.
-- Visualización en la nube mediante aplicación web.
-- Base de datos y backend para almacenamiento de datos históricos.
-- Métricas y reportes: cálculo de métricas clave y generación de reportes.
+#### 2.1 Componentes principales
 
-### No incluye
-- Automatización de motores del silo.
-- Control directo de procesos físicos de ventilación o carga.
-- Instalación en silos a escala real.
+- **Frontend**: React + Vite (`/frontend`)  
+  - SPA con React Router.  
+  - UI basada en tarjetas, paneles y gráficos (`recharts`, `react-plotly`, componentes propios).  
 
-## 4. Componentes del Sistema
+- **Backend**: Node.js + Express (`/backend`)  
+  - API REST para auth, silos, datos de sensores, alertas y galería.  
+  - Motor de alertas en el servidor.  
+  - Servidor estático del frontend compilado (`../frontend/dist`).  
 
-### Arquitectura
+- **Base de datos**: PostgreSQL en **Amazon RDS**  
+  - Tablas principales: `users`, `silos`, `sensor_data`, `alerts`, `alert_configs`, `gallery_captures`.  
 
+- **Almacenamiento de imágenes**: **Amazon S3**  
+  - Carpeta `silo-photos/` dentro de un bucket dedicado.  
+  - URLs públicas guardadas en `sensor_data.image_path` y `gallery_captures.image_path`.  
+
+- **Compute**: **Amazon EC2**  
+  - Instancia que corre el backend Express y sirve el frontend compilado.  
+
+#### 2.2 Autenticación y multi-tenant
+
+- **JWT** (JSON Web Token) con vigencia configurable (por defecto 7 días).  
+- Frontend escucha el evento `auth:session-expired` para cerrar sesión de forma elegante.  
+- Cada fila en `silos`, `sensor_data`, `alerts` y `gallery_captures` está asociada a un `user_id`.  
+  Todas las consultas filtran por usuario autenticado ⇒ **datos aislados por cliente**.
+
+#### 2.3 Protocolo IoT
+
+Cada dispositivo físico (kit ESP32) tiene un `kit_code` único, configurado por silo.
+
+El ESP32 envía telemetría y foto en una sola llamada:
+
+```text
+POST /api/datos-silo  (alias de /api/sensor-data/iot)
+Content-Type: multipart/form-data
+Campos:
+  - kit_code
+  - temperatura
+  - humedad
+  - gas
+  - presion (opcional)
+  - distancia_vacia
+  - fotoSilo (JPEG)
 ```
-SENSORES → ESP32 → COMUNICACIÓN → AWS CLOUD → APP WEB
-```
 
-### Hardware (Unidad IoT)
+El backend:
 
-**Sensores:**
-- **Temperatura:** DS18B20 (multipunto)
-- **Humedad:** SHT31 o DHT22
-- **Nivel de grano:** Ultrasonido o ToF
-- **Gases:** MQ-135 o CO2
+1. Resuelve el `silo_id` a partir del `kit_code`.  
+2. Calcula métricas (nivel, toneladas, riesgos).  
+3. Guarda los datos en `sensor_data`.  
+4. Sube la imagen a **S3** (multer-s3) y guarda la URL pública.  
+5. Ejecuta `evaluateAlerts()` para disparar alertas.
 
-**Procesador:** ESP32
+---
 
-**Comunicación:** WiFi y LoRa. Se evaluará la viabilidad de comunicación satelital (más costoso).
+### 3. Estructura del repositorio
 
-### Software (Cloud)
-
-**Plataforma:** AWS Free Tier
-
-**Servicios AWS:**
-- AWS IoT Core
-
-**Stack Tecnológico:**
-- **Backend:** Node.js
-- **Frontend:** React
-- **Base de datos:** PostgreSQL
-
-## 5. Información y Cálculos Disponibles para el Usuario
-
-| Variable medida | Método de cálculo / interpretación | Información entregada al usuario |
-|----------------|-----------------------------------|----------------------------------|
-| **Temperatura multipunto** | Se registra la temperatura en varios puntos del silo. El sistema calcula el promedio, los valores mínimos y máximos. Un mapa de calor visualiza la distribución para identificar zonas de riesgo. | Estado térmico del grano. Alertas ante picos o variaciones que sugieren fermentación. |
-| **Humedad interna** | Se mide la humedad relativa del aire dentro del silo. Se aplican umbrales críticos para generar alertas automáticas si se superan los valores seguros para el almacenamiento. | Humedad relativa actual. Alerta temprana de riesgo de moho y deterioro del grano. |
-| **Nivel de grano** | El sensor mide la distancia desde el techo del silo hasta la superficie del grano. El sistema utiliza esta distancia, junto con las dimensiones del silo y la densidad del grano, para calcular el volumen y el peso (toneladas). | Porcentaje de llenado del silo. Toneladas exactas de grano almacenadas. |
-| **Calidad del Aire / Gases** | Se mide la concentración de gases específicos (ej. CO₂). Un aumento en la concentración de estos gases es un indicador de actividad biológica (fermentación o plagas). | Nivel de concentración de gases. Alerta de fermentación o infestación incipiente. |
-| **Datos Históricos** | El sistema almacena y analiza todos los datos medidos a lo largo del tiempo. Se utilizan algoritmos para identificar tendencias, ciclos y patrones de comportamiento. | Gráficos y reportes de tendencias. Comparativa del estado actual con registros pasados. Proyecciones básicas de consumo. |
-
-## 6. Conclusión y Fases Futuras
-
-Se espera combinar IoT y cloud para crear un prototipo funcional que resuelve una necesidad crítica en la agroindustria. Esta fase sienta las bases tecnológicas para un sistema industrial más robusto, permitiendo en el futuro la integración de la automatización de procesos físicos.
-
-## 🚀 Estado del Proyecto
-
-En desarrollo - 2025
-
-## 🏗️ Estructura del Proyecto
-
-```
+```text
 Salgest/
-├── backend/          # API REST en Node.js
-├── frontend/         # Aplicación web en React
-├── simulator/        # Simulador de datos IoT (para desarrollo sin hardware)
-└── README.md
+  backend/
+    server.js
+    routes/
+    services/
+    database/
+    scripts/
+    .env
+  frontend/
+    src/
+    public/
+    vite.config.js
+    .env
+  docs/
+    CHECKLIST.md
 ```
 
-## 🎮 Inicio Rápido
+---
 
-### Requisitos
-- Node.js (v18 o superior)
-- npm
+### 4. Configuración de entorno
 
-### Instalación
+#### 4.1 Backend (`backend/.env`)
+
+Ejemplo mínimo:
+
+```env
+PORT=3000
+
+# PostgreSQL (RDS)
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DBNAME
+DATABASE_SSL=true
+
+# JWT
+JWT_SECRET=cambia-esto-en-produccion
+JWT_EXPIRES_IN=7d
+
+# S3
+AWS_REGION=us-east-2
+AWS_BUCKET_NAME=salgest-bucket
+AWS_ACCESS_KEY_ID=XXXX
+AWS_SECRET_ACCESS_KEY=YYYY
+```
+
+El backend también soporta `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`, `DB_PORT` como alternativa a `DATABASE_URL`.
+
+#### 4.2 Frontend (`frontend/.env`)
+
+```env
+VITE_API_URL=http://localhost:3000/api
+VITE_API_ORIGIN=http://localhost:3000
+VITE_API_PROXY_TARGET=http://localhost:3000
+```
+
+En producción podés apuntar a tu backend en EC2, por ejemplo:
+
+```env
+VITE_API_URL=https://api.salgest.tu-dominio.com/api
+VITE_API_ORIGIN=https://api.salgest.tu-dominio.com
+VITE_API_PROXY_TARGET=https://api.salgest.tu-dominio.com
+```
+
+---
+
+### 5. Ejecución local
+
+#### 5.1 Backend
 
 ```bash
-# Instalar todas las dependencias
-npm run install:all
+cd backend
+npm install
+npm run dev      # desarrollo (node --watch server.js)
+# o
+npm start        # producción simple
 ```
 
-### Ejecución
+El backend:
 
-**Terminal 1 - Backend:**
+- Expone la API en `http://localhost:3000`.  
+- Sirve los estáticos de React desde `../frontend/dist` si existe.  
+- Tiene las rutas de API bajo `/api/...` y el comodín para React Router:
+
+```js
+// server.js
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
+```
+
+#### 5.2 Frontend
+
 ```bash
-npm run dev:backend
+cd frontend
+npm install
+npm run dev      # desarrollo con Vite
+npm run build    # build de producción → dist/
 ```
 
-**Terminal 2 - Frontend:**
+Para servir el frontend desde el backend en producción:  
+1. `npm run build` en `frontend`.  
+2. Copiar (o dejar) `frontend/dist` accesible desde `backend`.  
+3. Asegurarse de que el servidor Express tenga las líneas anteriores de estáticos y comodín.
+
+---
+
+### 6. Telemetría y cálculos
+
+#### 6.1 Nivel y stock físico
+
+- **Entrada**: `distancia_vacia` enviada por el ESP32 (`cm` desde el sensor hasta el grano).  
+- **Altura total**: configurada por silo (`height` en metros).  
+- **Nivel real**:
+
+\[
+\text{nivelRealCm} = \max(0, \text{alturaTotalCm} - \text{distancia\_vacia})
+\]
+
+- **Porcentaje de llenado**:
+
+\[
+\%\text{stock} = \min\left(100, \frac{\text{nivelRealCm}}{\text{alturaTotalCm}} \times 100\right)
+\]
+
+- **Toneladas**:
+
+\[
+\text{tons} = V_{\text{cilindro}} \times \rho_{\text{ajustada}}
+\]
+
+con:
+
+- \(V_{\text{cilindro}} = \pi \times r^2 \times h_{\text{grano}}\)  
+- \(\rho_{\text{ajustada}} =\) resultado de `getDensityAdjusted(grainType, humedad)`  
+  (corrige la densidad base según la humedad real).
+
+#### 6.2 Mapa de calor topográfico
+
+Se muestra un mapa de calor cenital del silo (`MapaCalorSilo`) que simula:
+
+- Superficie del grano según el **Ángulo de Reposo** del tipo de grano.  
+- Cambios de nivel se traducen en variaciones topográficas.
+
+#### 6.3 Clima interno
+
+- Promedios, máximos y mínimos de **temperatura** y **humedad**.  
+- **Punto de rocío (dew point)** calculado con fórmula de Magnus–Tetens.  
+  Se usa para detectar riesgo de **condensación** (si la temperatura está a < 2°C del dew point).
+
+#### 6.4 Calidad del aire
+
+- Sensor MQ-135 → **CO₂ en ppm**.  
+- Se mapea a un **Índice de Calidad del Aire (IQA)** 0–100 para visualización amigable.
+
+---
+
+### 7. Módulo de cámara y galería
+
+#### 7.1 Cámara en vivo
+
+- El ESP32-CAM envía imágenes a `/api/camera/:siloId` (JPEG en bruto).  
+- El frontend refresca cada 5 segundos y aplica filtros:
+
+  - `brightness(1.6)`  
+  - `contrast(1.1)`
+
+para aclarar imágenes oscuras dentro del silo.
+
+- Si el último registro de sensores tiene `imagePath` (URL S3), la “Cámara” usa **esa URL** como fuente principal; si no, cae al endpoint `/api/camera`.
+
+#### 7.2 Historial visual
+
+- Pestaña dedicada (`Historial visual`) con:
+
+  - Slider temporal.  
+  - Foto histórica sincronizada con ese timestamp.  
+  - Mapa de calor correspondiente a ese momento.
+
+- Carga **lazy**: sólo cuando se abre la pestaña, y se puede cargar el historial completo bajo demanda.
+
+#### 7.3 Galería global
+
+- Nuevo menú `Galería` en el sidebar.  
+- Cada captura guardada almacena:
+
+  - Silo y nombre (`silo_id`, `silo_name`).  
+  - Fecha de captura (`captured_at`).  
+  - Métricas (temperatura, humedad, CO₂, nivel %, toneladas, presión).  
+  - Origen (`live` o `historical`).  
+  - URL de imagen (S3 o ruta local).  
+  - **Nota opcional** escrita por el usuario.
+
+- Desde el **detalle del silo**:
+
+  - Botones con icono de carpeta permiten guardar:
+    - La vista actual de la cámara.  
+    - Una foto del historial visual.
+  - Al hacer clic, se abre un **modal estilizado** donde el usuario puede escribir una nota.  
+  - Al confirmar, se llama a `POST /api/gallery` y se muestra un toast de éxito/error.
+
+---
+
+### 8. Motor de alertas
+
+El servicio de alertas evalúa cada nuevo registro (`sensor_data`) y genera alertas en la tabla `alerts`.  
+Algunos ejemplos:
+
+#### 8.1 Críticas (🔴)
+
+- **Fermentación activa**: temperatura alta + humedad alta + pico de gases.  
+- **Capacidad máxima ≥ 95%**.  
+- **Descenso brusco de nivel**: caída de toneladas más rápida que el ritmo máximo de extracción.  
+- **Foco de calor**: pendiente de temperatura muy pronunciada.  
+- **Gases críticos > 150 ppm**.  
+- **Humedad crítica > 70%**.
+
+#### 8.2 Atención (🟠)
+
+- **Riesgo de condensación**: temperatura a menos de 2°C del punto de rocío.  
+- **Ambiente ideal para insectos**: patrón de temperatura/humedad que favorece plagas.  
+- **Temperatura elevada > 28°C**.  
+- **Gases leves > 100 ppm**.  
+- **Stock crítico ≤ 10%**.
+
+#### 8.3 Sistema (⚙️)
+
+- **Pérdida de conexión**: más de 30 minutos sin datos.  
+- **Sensor ultrasónico fuera de rango**: lectura mayor al 110% de la altura total del silo.
+
+Las alertas se muestran:
+
+- En el **panel global de alertas** (Dashboard).  
+- En el panel de alertas del **detalle de cada silo**.  
+- Pueden marcarse como “reconocidas” (acknowledge) desde el frontend.
+
+---
+
+### 9. Endpoints principales (resumen)
+
+Auth:
+
+- `POST /api/auth/register` – registro usuario.  
+- `POST /api/auth/login` – login (JWT).  
+- `GET  /api/auth/profile` – perfil del usuario.  
+- `PUT  /api/auth/profile` – actualizar nombre/email/contraseña.
+
+Silos:
+
+- `GET    /api/silos` – lista de silos del usuario.  
+- `POST   /api/silos` – crear silo.  
+- `GET    /api/silos/:id` – detalle de silo.  
+- `PUT    /api/silos/:id` – actualizar silo (incluye `kit_code`).  
+- `DELETE /api/silos/:id` – eliminar silo.  
+- `PUT    /api/silos/:id/vincular` – vincular/desvincular `kit_code` a un silo.
+
+Datos de sensores:
+
+- `POST /api/sensor-data` – datos de sensores “puros” (JSON).  
+- `POST /api/sensor-data/iot` – datos desde ESP32 con foto (`/api/datos-silo`).  
+- `GET  /api/silos/:id/history` – historial.  
+
+Imágenes de cámara:
+
+- `POST /api/camera/:siloId` – última foto de cámara (JPEG).  
+- `GET  /api/camera/:siloId` – obtener última foto.
+
+Alertas:
+
+- `GET    /api/alerts` – alertas activas globales.  
+- `GET    /api/alerts/:siloId` – alertas activas por silo.  
+- `GET    /api/alerts/:siloId/history` – historial de alertas por silo.  
+- `PATCH  /api/alerts/:id/acknowledge` – reconocer alerta.  
+- `GET    /api/alerts/:siloId/config` – umbrales configurados.  
+- `PUT    /api/alerts/:siloId/config/:key` – actualizar un umbral.
+
+Galería:
+
+- `GET    /api/gallery` – capturas guardadas del usuario.  
+- `POST   /api/gallery` – guardar captura (live/histórica + nota).  
+- `DELETE /api/gallery/:id` – eliminar captura.
+
+---
+
+### 10. Roadmap (Fase 2 y 3)
+
+#### 10.1 Módulo geoespacial (/mapa)
+
+- Agrupar silos por establecimiento/campo.  
+- Mostrar pines en mapa satelital (React Leaflet) usando el peor estado de los silos cercanos.  
+- Dibujar polígonos que delimiten las áreas de cada cliente.
+
+#### 10.2 Reportes ejecutivos (/reportes)
+
+- Reportes PDF/Excel para gerencia (stock, alertas, tiempos de respuesta).  
+- Análisis de correlación entre temperatura, humedad y gases a lo largo de meses.  
+- Métricas de tiempo promedio de reconocimiento de alertas críticas.
+
+#### 10.3 IA y predicción
+
+- **Predicción de consumo** y “día cero” de stock con modelos de regresión / series temporales.  
+- **Prevención de putrefacción**: modelos ARIMA / LSTM para predecir fermentación días antes.  
+
+---
+
+### 11. Notas finales
+
+- Actualmente se pueden simular o usar sensores reales en ESP32.  
+- Toda la infraestructura está pensada para convivir en AWS (**EC2 + RDS + S3**), con el frontend servido desde el propio backend Express.  
+- Los archivos `.env` (backend y frontend) y los directorios `dist` y `uploads` están ignorados en git para evitar exponer secretos y builds.
+---
+
+### 12. Despliegue en AWS (guía resumida)
+
+#### 12.1 Base de datos en Amazon RDS (PostgreSQL)
+
+1. Crear instancia RDS PostgreSQL.  
+2. Definir:
+   - `DB_NAME` (ej. `salgest` o `postgres`).  
+   - Usuario maestro y contraseña (usar luego en `DATABASE_URL`).  
+3. Configurar:
+   - VPC donde vivirá también la instancia EC2.  
+   - Security Group que permita tráfico entrante por puerto **5432** solo desde:
+     - Tu IP (para dev), o  
+     - El security group de la instancia EC2 (para prod).  
+4. En el backend, ajustar `DATABASE_URL` y `DATABASE_SSL=true`.
+
+#### 12.2 Bucket en Amazon S3
+
+1. Crear un bucket (ej. `salgest-photos`) en la región indicada en `AWS_REGION`.  
+2. En `backend/.env`, configurar:
+
+   ```env
+   AWS_REGION=us-east-2
+   AWS_BUCKET_NAME=salgest-photos
+   AWS_ACCESS_KEY_ID=...
+   AWS_SECRET_ACCESS_KEY=...
+   ```
+
+3. El bucket puede ser “Bloquear ACLs = true”; el código ya no las usa.  
+4. Otorgar a la IAM user/role permisos mínimos:
+   - `s3:PutObject` y `s3:GetObject` sobre `arn:aws:s3:::salgest-photos/silo-photos/*`.
+
+#### 12.3 Backend en EC2
+
+1. Crear una instancia EC2 (ej. Amazon Linux 2) en la misma VPC/subred que RDS.  
+2. Instalar Node.js (>= 20), git y PostgreSQL client (opcional).  
+3. Clonar el repo y configurar `.env` en `backend/`.  
+4. Construir el frontend:
+
+   ```bash
+   cd frontend
+   npm install
+   npm run build
+   ```
+
+5. Volver a `backend/`, instalar dependencias y lanzar la app con un process manager:
+
+   ```bash
+   cd backend
+   npm install
+   npx pm2 start server.js --name salgest-backend
+   npx pm2 save
+   ```
+
+6. Abrir el puerto **3000** en el security group de la EC2 (o usar Nginx para exponer en 80/443).
+
+#### 12.4 (Opcional) Nginx como reverse proxy
+
+Configurar un virtual host que apunte a `http://localhost:3000` y sirva HTTPS con un certificado TLS (ej. Let’s Encrypt).  
+De esta forma, el frontend y la API quedarán disponibles bajo un mismo dominio (ej. `https://app.salgest.com`).
+
+---
+
+### 13. ESP32 / Simulación de envío de datos
+
+Si bien el sistema está pensado para trabajar con un **ESP32** real, durante el desarrollo se pueden probar llamadas desde herramientas como `curl` o Postman.
+
+#### 13.1 Ejemplo de payload JSON simple
+
 ```bash
-npm run dev:frontend
+curl -X POST http://localhost:3000/api/sensor-data \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siloId": "silo-demo-aws-1",
+    "timestamp": "2026-03-05T18:00:00.000Z",
+    "temperature": { "average": 27.5, "min": 26.8, "max": 28.2, "hasRisk": false },
+    "humidity": 62.5,
+    "humidityRisk": false,
+    "presion": 1011.3,
+    "grainLevel": { "percentage": 68.3, "tons": 78.2, "distance": 115.0 },
+    "gases": { "co2": 95, "hasRisk": false }
+  }'
 ```
 
-**Terminal 3 - Simulador (datos IoT):**
+#### 13.2 Ejemplo de multipart/form-data (como el ESP32)
+
 ```bash
-npm run dev:simulator
+curl -X POST http://localhost:3000/api/datos-silo \
+  -H "Content-Type: multipart/form-data" \
+  -F "kit_code=SILO-DEMO-AWS" \
+  -F "temperatura=27.4" \
+  -F "humedad=63.1" \
+  -F "gas=110" \
+  -F "presion=1010.8" \
+  -F "distancia_vacia=120.5" \
+  -F "fotoSilo=@./ejemplos/foto-silo.jpg;type=image/jpeg"
 ```
 
-### Acceso
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:3000
-- **Health Check:** http://localhost:3000/health
+En un escenario real, el firmware del ESP32 se encarga de construir este request periódicamente (cada N segundos/minutos).
 
-> 📖 Para más detalles, consulta [INSTRUCCIONES.md](./INSTRUCCIONES.md)
-
-## 🔧 Simulador de Datos IoT
-
-Como el hardware físico no está disponible inicialmente, el proyecto incluye un **simulador de datos IoT** que genera valores realistas de todos los sensores:
-
-- ✅ Temperatura multipunto (4 sensores DS18B20)
-- ✅ Humedad relativa (SHT31/DHT22)
-- ✅ Nivel de grano (ultrasonido/ToF)
-- ✅ Calidad del aire / CO₂ (MQ-135)
-
-El simulador envía datos al backend cada 5 segundos (configurable) y permite desarrollar y probar todo el sistema sin necesidad del hardware físico.
-
-## 📷 Cámara ESP32-CAM
-
-El sistema permite conectar una cámara en el ESP32 (ESP32-CAM) para ver la imagen en tiempo (casi) real en la vista de detalle de cada silo:
-
-- **Backend:** `POST /api/camera/:siloId` recibe la foto JPEG; `GET /api/camera/:siloId` devuelve la última imagen.
-- **Frontend:** en el detalle del silo se muestra la última imagen y se actualiza cada 5 segundos. Si no hay cámara conectada, se muestra un placeholder con instrucciones.
-
-Para configurar el firmware del ESP32 y enviar fotos al backend, ver [docs/ESP32_CAMARA.md](./docs/ESP32_CAMARA.md).
-
-## 📝 Licencia
-
-Este proyecto es parte del trabajo académico para la materia Desarrollo de Software Cloud de la UTN FRLP.
